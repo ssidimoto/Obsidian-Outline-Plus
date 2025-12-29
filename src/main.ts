@@ -1,5 +1,6 @@
-import { Plugin, WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Plugin, WorkspaceLeaf } from 'obsidian';
 import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/emptyExplorerView';
+import { Console } from 'console';
 
 export default class ExamplePlugin extends Plugin {
   async onload() {
@@ -11,6 +12,21 @@ export default class ExamplePlugin extends Plugin {
     this.addRibbonIcon('list-tree', 'Activate view', () => {
       this.activateView();
     });
+
+    console.log("ntm")
+
+    this.app.workspace.on('active-leaf-change', () => {
+      const file = this.app.workspace.getActiveFile();
+      if(file){
+        const content = this.app.vault.read(file);
+        console.log(content);
+      }
+    });
+
+    this.app.workspace.on('editor-change', editor => {
+      let content = editor.getDoc().getValue()
+      console.log(content)
+    })
   }
 
   async onunload() {
