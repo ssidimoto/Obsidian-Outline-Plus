@@ -62,10 +62,8 @@ export class FileTreeView extends ItemView {
     let root = new HeadingNode(rootHeading, -1)
     this.tree = new HeadingsTree(root)
 
-    let arr = FileParser.getAllHeadingsWithLevels(editorContent)
-    let arr2 = FileParser.buildAllItemsNodes(arr)
-    arr2.forEach((node) => this.tree.addNode(node))
-    console.log(this.tree)
+    let nodes = FileParser.BuildAllHeadingItem(editorContent)
+    nodes.forEach((node) => this.tree.addNode(node))
   }
   
   async onClose() {

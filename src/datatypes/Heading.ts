@@ -15,11 +15,14 @@ export class Heading{
 export class htmlHeading{
     headingContainer: HTMLElement;
     heading: HTMLElement;
-    subHeading: HTMLElement
+    subHeading: HTMLElement;
+    displayed: Boolean;
 
-    constructor(headingContainer: HTMLElement, heading: HTMLElement, subHeading: HTMLElement){
+    constructor(headingContainer: HTMLElement, heading: HTMLElement, subHeading: HTMLElement, displayed: Boolean = true){
         this.headingContainer = headingContainer;
         this.heading = heading;
         this.subHeading = subHeading;
+        this.displayed = false
+        this.displayed = displayed
     }
 }

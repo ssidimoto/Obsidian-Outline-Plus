@@ -15,8 +15,8 @@ import { UiHelper } from "./UiHelper";
  *   - g         : global - find all matches
  *   - m         : multiline - ^ / $ match start/end of lines
  *
- * Title level:
- * - We determine the heading level by counting the number of leading '#' characters.
+ * Title depth:
+ * - We determine the heading depth by counting the number of leading '#' characters.
  **/
 export const maxHeadingDepth = 6
 export class FileParser {
@@ -26,28 +26,28 @@ export class FileParser {
 	/**
 	 * Scan a document and return all headings with their levels.
 	 * @param doc - full document text
-	 * @returns array of objects: { headLine: string, level: number }
+	 * @returns array of objects: { headLine: string, depth: number }
 	 */
-	static getAllHeadingsWithLevels(doc: string): { headLine: string; level: number }[] {
-		const results: { headLine: string; level: number }[] = []
+	static getAllHeadingsWithLevels(doc: string): { headLine: string; depth: number }[] {
+		const results: { headLine: string; depth: number }[] = []
 		// Use matchAll to get all matches with global flag
 		for (const match of doc.matchAll(this.pattern)) {
 			const headLine = match[0] ?? ""
-			// Extract leading hashes (e.g. "###") and count them to get the level
+			// Extract leading hashes (e.g. "###") and count them to get the depth
 			const hashMatch = headLine.match(/^#{1,6}/)
-			const level = hashMatch ? hashMatch[0].length : 0
-			results.push({ headLine: headLine.substring(level).trim(), level })
+			const depth = hashMatch ? hashMatch[0].length : 0
+			results.push({ headLine: headLine.substring(depth).trim(), depth })
 		}
 		return results
 	}
 
-	static buildAllItemsNodes(inOrderHeadings: { headLine: string; level: number }[]): HeadingNode[] {
+	static buildAllItemsNodes(inOrderHeadings: { headLine: string; depth: number }[]): HeadingNode[] {
 		const multiLevellevel = Array(maxHeadingDepth).fill(0);
 		let currDepth = 0;
 
 		const itemArray: HeadingNode[] = Array()
 		inOrderHeadings.forEach((item) => {
-			let arr_level = item.level -1
+			let arr_level = item.depth -1
 
 			if (currDepth == arr_level) {
 				multiLevellevel[currDepth] += 1;
@@ -61,12 +61,18 @@ export class FileParser {
 				multiLevellevel[arr_level] += 1
 				currDepth = arr_level
 			}
-			let uiElem = UiHelper.createHTMLHeading(item.headLine)
+			let uiElem = UiHelper.createHTMLHeading(item.headLine, item.depth)
 			let heading = new Heading(item.headLine, multiLevellevel.slice(), uiElem)
 			let node = new HeadingNode(heading, currDepth)
 			itemArray.push(node)
 		});
 		return itemArray
 	}
+	
+	static BuildAllHeadingItem(doc: string){
+		let headingObj = this.getAllHeadingsWithLevels(doc)
+    	return this.buildAllItemsNodes(headingObj)
+	}
+
 	
 }
