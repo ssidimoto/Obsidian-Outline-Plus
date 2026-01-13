@@ -3,6 +3,7 @@ import { Heading, htmlHeading } from 'datatypes/Heading';
 import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { maxHeadingDepth } from 'services/FileParser';
 import { FileParser } from 'services/FileParser';
+import { UiHelper } from 'services/UiHelper';
 
 export const VIEW_TYPE_FILE_TREE = 'file-tree-view';
 
@@ -22,7 +23,8 @@ export class FileTreeView extends ItemView {
     }
   `;
 
-  tree: HeadingsTree
+  tree: HeadingsTree;
+
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
   }
@@ -40,6 +42,7 @@ export class FileTreeView extends ItemView {
 
     container.createEl('style').textContent = this.heading_container_style
     container.createEl('h4', { text: 'File tree' });
+
     const closeBtn = container.createEl('button', { text: 'Close'});
     closeBtn.addEventListener('click', () => this.app.workspace.detachLeavesOfType(VIEW_TYPE_FILE_TREE));
     
@@ -53,12 +56,9 @@ export class FileTreeView extends ItemView {
   buildUiTree(editorContent: string){
     // Clear previous tree
     this.containerEl.querySelectorAll('.heading-container').forEach(el => el.remove());
-    this.contentEl.querySelectorAll('.heading-container').forEach(el => el.remove());
-    let rootHeadingContainer = this.containerEl.createDiv({cls: 'heading-container'});
-    let rootHeadingHeading = rootHeadingContainer.createDiv({cls: 'heading'});
-    let rootSubHeading = rootHeadingContainer.createDiv({cls: 'sub-heading'});
-    let rootHTMLHeading = new htmlHeading(rootHeadingContainer, rootHeadingHeading, rootSubHeading)
-    let rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), rootHTMLHeading)
+
+    let htmlRootHeading = UiHelper.createRootHtmlHeading(this.containerEl)
+    let rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), htmlRootHeading)
     let root = new HeadingNode(rootHeading, -1)
     this.tree = new HeadingsTree(root)
 

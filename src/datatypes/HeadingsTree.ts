@@ -1,4 +1,6 @@
-import { Heading } from "./Heading";
+import { UiHelper } from "services/UiHelper";
+import { Heading, htmlHeading } from "./Heading";
+import { HTMLCls } from "services/UiHelper";
 
 export class HeadingNode {
     childrens: HeadingNode[] = []
@@ -25,11 +27,12 @@ export class HeadingNode {
                     child.data.index[curr_depth] == node.data.index[curr_depth]){
                     node.childrens.push(child)
                     child.parent = node
+                    //handle html here when create new intermediary, must delete this. html child, and add them instead to node.html childs
                 }
             });
-            node.parent = this
-            this.data.uiElem.subHeading.insertAdjacentElement("beforeend", node.data.uiElem.headingContainer)
-            console.log(this.data.uiElem)
+            node.parent = this;
+            this.childrens.push(node)
+            UiHelper.addHTMLinChild(this.data.uiElem, node.data.uiElem)
         }
         if(node.depth > this.depth){
             let nodeAdded = false
@@ -43,7 +46,7 @@ export class HeadingNode {
             if(nodeAdded == false){
                 node.parent = this
                 this.childrens.push(node)
-                this.data.uiElem.subHeading.insertAdjacentElement("beforeend", node.data.uiElem.headingContainer)
+                UiHelper.addHTMLinChild(this.data.uiElem, node.data.uiElem)
             }
         }
         return
@@ -54,6 +57,7 @@ export class HeadingNode {
             child.parent = this.parent
         })
         this.childrens = [];
+        UiHelper.clearNodeHTML(this.data.uiElem)
     }
 
     findNode(node: {depth: number; index: number[]}, curr_depth: number): HeadingNode | null{
@@ -78,7 +82,7 @@ export class HeadingNode {
             return foundNode
         }
         return null
-    }
+    } 
 }
 
 export class HeadingsTree {
@@ -101,6 +105,4 @@ export class HeadingsTree {
             nodeToRemove.remove()
         }
     }
-
-    
 }
