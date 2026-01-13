@@ -1,17 +1,17 @@
-import { Itemhierarchy } from "datatypes/Heading"
+import { Heading } from "./Heading";
 
-export class HeadingNode<T extends Itemhierarchy> {
-    childrens: HeadingNode<T>[] = []
-    parent: HeadingNode<T>;
-    data: T;
+export class HeadingNode {
+    childrens: HeadingNode[] = []
+    parent: HeadingNode;
+    data: Heading;
     depth: number;
 
-    constructor(data: T, depth: number){
+    constructor(data: Heading, depth: number){
         this.data = data
         this.depth = depth
     }
 
-    addNode(node: HeadingNode<T>, curr_depth: number){
+    addNode(node: HeadingNode, curr_depth: number){
 
         if(node.depth == curr_depth){
 
@@ -25,11 +25,11 @@ export class HeadingNode<T extends Itemhierarchy> {
                     child.data.index[curr_depth] == node.data.index[curr_depth]){
                     node.childrens.push(child)
                     child.parent = node
-
                 }
             });
             node.parent = this
-            this.childrens.push(node)
+            this.data.uiElem.subHeading.insertAdjacentElement("beforeend", node.data.uiElem.headingContainer)
+            console.log(this.data.uiElem)
         }
         if(node.depth > this.depth){
             let nodeAdded = false
@@ -41,7 +41,9 @@ export class HeadingNode<T extends Itemhierarchy> {
             });
 
             if(nodeAdded == false){
+                node.parent = this
                 this.childrens.push(node)
+                this.data.uiElem.subHeading.insertAdjacentElement("beforeend", node.data.uiElem.headingContainer)
             }
         }
         return
@@ -54,7 +56,7 @@ export class HeadingNode<T extends Itemhierarchy> {
         this.childrens = [];
     }
 
-    findNode(node: {depth: number; index: number[]}, curr_depth: number): HeadingNode<T> | null{
+    findNode(node: {depth: number; index: number[]}, curr_depth: number): HeadingNode | null{
 
         if(node.depth == curr_depth){
             let foundChild = null;
@@ -67,28 +69,30 @@ export class HeadingNode<T extends Itemhierarchy> {
             return foundChild
         }
         if(node.depth > this.depth){
+            let foundNode: HeadingNode | null = null;
              this.childrens.forEach((child) => {
                 if(child.data.index[curr_depth] == node.index[curr_depth]){
-                    child.findNode(node, curr_depth + 1)
+                    foundNode = child.findNode(node, curr_depth + 1)
                 }
             });
+            return foundNode
         }
         return null
     }
 }
 
-export class HeadingsTree<T extends Itemhierarchy> {
-    root: HeadingNode<T>;
+export class HeadingsTree {
+    root: HeadingNode;
 
-    constructor(root: HeadingNode<T>){
+    constructor(root: HeadingNode){
         this.root = root
     }
-    addNode(node: HeadingNode<T>){
+    addNode(node: HeadingNode){
         this.root.addNode(node, 0)
     }
 
     findNode(node: {depth: number; index: number[]}, curr_depth: number){
-        this.root.findNode(node, 0)
+        return this.root.findNode(node, 0)
     }
 
     removeNode(node: {depth: number; index: number[]}, curr_depth: number){

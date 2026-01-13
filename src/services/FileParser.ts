@@ -1,4 +1,4 @@
-import { Heading, Itemhierarchy } from "datatypes/Heading";
+import { Heading, htmlHeading } from "datatypes/Heading";
 import { HeadingNode } from "datatypes/HeadingsTree";
 
 /**
@@ -40,11 +40,11 @@ export class FileParser {
 		return results
 	}
 
-	static buildAllItemsNodes(inOrderHeadings: { headLine: string; level: number }[]): HeadingNode<Heading>[] {
+	static buildAllItemsNodes(inOrderHeadings: { headLine: string; level: number }[]): HeadingNode[] {
 		const multiLevellevel = Array(maxHeadingDepth).fill(0);
 		let currDepth = 0;
 
-		const itemArray: HeadingNode<Heading>[] = Array()
+		const itemArray: HeadingNode[] = Array()
 		inOrderHeadings.forEach((item) => {
 			let arr_level = item.level -1
 
@@ -60,10 +60,20 @@ export class FileParser {
 				multiLevellevel[arr_level] += 1
 				currDepth = arr_level
 			}
-			let heading = new Heading(item.headLine, multiLevellevel.slice())
+			let uiElem = this.createHTMLHeading(item.headLine)
+			let heading = new Heading(item.headLine, multiLevellevel.slice(), uiElem)
 			let node = new HeadingNode(heading, currDepth)
 			itemArray.push(node)
 		});
 		return itemArray
 	}
+	static createHTMLHeading(heading_title: string): htmlHeading{
+		let root = document.createElement('div')
+		let heading_container = root.createDiv({cls: 'heading-container'})
+		let heading = heading_container.createDiv({cls: 'heading'})
+		let subHeading = heading_container.createDiv({cls: 'sub-headings'})
+		heading.createEl('button', {text: '>'})
+		heading.createEl('div', {text: heading_title, cls: 'heading-text'})
+		return new htmlHeading(heading_container, heading, subHeading)
+  }
 }

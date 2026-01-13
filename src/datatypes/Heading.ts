@@ -1,30 +1,25 @@
-export class Itemhierarchy{
-    index: number[]
 
-    constructor(index: number[]){
+
+export class Heading{
+    headLine: string;
+    uiElem: htmlHeading;
+    index: number[];
+    
+    constructor(headLine: string, index: number[], uiElem: htmlHeading){
+        this.headLine = headLine;
+        this.uiElem = uiElem;
         this.index = index
-    }
-
-    compare(item: Itemhierarchy){
-        for (let i = 0; i < Math.min(this.index.length, item.index.length); i++) {
-            const a = this.index[i];
-            const b = item.index[i];
-
-            if(a == undefined) return false 
-            else if(b == undefined) return true
-
-            if (a < b) return true;
-            if(a > b) return false;
-        }
-        throw Error("there are two same level heeadings")
     }
 }
 
-export class Heading extends Itemhierarchy{
-    headLine: string;
-    constructor(headLine: string, index: number[]){
-        super(index)
-        this.headLine = headLine;
-    }
+export class htmlHeading{
+    headingContainer: HTMLElement;
+    heading: HTMLElement;
+    subHeading: HTMLElement
 
+    constructor(headingContainer: HTMLElement, heading: HTMLElement, subHeading: HTMLElement){
+        this.headingContainer = headingContainer;
+        this.heading = heading;
+        this.subHeading = subHeading;
+    }
 }

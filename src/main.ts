@@ -6,34 +6,17 @@ import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { Heading } from 'datatypes/Heading';
 
 export default class ExamplePlugin extends Plugin {
-  tree: HeadingsTree<Heading>
   async onload() {
     this.registerView(
       VIEW_TYPE_FILE_TREE,
       (leaf) => new FileTreeView(leaf)
     );
-    let heading = new Heading("Tree File Structure", Array().fill(0, maxHeadingDepth))
-    let root = new HeadingNode(heading, -1)
-    this.tree = new HeadingsTree(root)
 
     this.addRibbonIcon('list-tree', 'Activate view', () => {
       this.activateView();
     });
 
     console.log("ntm")
-
-    this.app.workspace.on('active-leaf-change', () => {
-      const file = this.app.workspace.getActiveFile();
-      if(file){
-        const content = this.app.vault.read(file)
-        content.then((result) => {
-          let arr = FileParser.getAllHeadingsWithLevels(result)
-          let arr2 = FileParser.buildAllItemsNodes(arr)
-          arr2.forEach((node) => this.tree.addNode(node))
-          console.log(this.tree)
-          });
-      }
-    });
 
     // this.app.workspace.on('editor-change', editor => {
     //   let content = editor.getDoc().getValue()
