@@ -1,29 +1,30 @@
-import { MarkdownView, Plugin, renderResults, WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App} from 'obsidian';
 import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/emptyExplorerView';
 import { Console } from 'console';
 import { FileParser, maxHeadingDepth } from 'services/FileParser';
 import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { Heading } from 'datatypes/Heading';
+import { UiHelper } from 'services/UiHelper';
 
 export default class ExamplePlugin extends Plugin {
+
+  uiHelper: UiHelper
+  fileParser: FileParser
+  
   async onload() {
+
+    let uiHelper = new UiHelper(this.app)
+    this.uiHelper = uiHelper
+    this.fileParser = new FileParser(this.app, uiHelper)
+
     this.registerView(
       VIEW_TYPE_FILE_TREE,
-      (leaf) => new FileTreeView(leaf)
+      (leaf) => new FileTreeView(leaf, this.fileParser, this.uiHelper)
     );
 
     this.addRibbonIcon('list-tree', 'Activate view', () => {
       this.activateView();
     });
-
-    console.log("ntm")
-
-    // this.app.workspace.on('editor-change', editor => {
-    //   let content = editor.getDoc().getValue()
-    //       let arr = FileParser.getAllHeadingsWithLevels(content);
-    //       let arr2 = FileParser.buildAllItemsNodes(arr)
-    //       console.log(arr2);
-    // })
   }
 
   async onunload() {
@@ -45,7 +46,6 @@ export default class ExamplePlugin extends Plugin {
         await leaf.setViewState({ type: VIEW_TYPE_FILE_TREE, active: true });
       }
     }
-
     if (leaf) {
       workspace.revealLeaf(leaf);
     }

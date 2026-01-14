@@ -1,5 +1,6 @@
 import { htmlHeading } from "datatypes/Heading"
 import { HeadingNode } from "datatypes/HeadingsTree"
+import { App, Editor, EditorPosition } from "obsidian"
 
 export const HTMLCls = {
         HeadingContainer: "heading-container",
@@ -10,6 +11,13 @@ export const HTMLCls = {
     }
 
 export class UiHelper{
+
+    workspace: App
+        
+    constructor(workspace: App){
+        this.workspace = workspace
+    }
+
     static createRootHtmlHeading(root: HTMLElement){
         let rootHeadingContainer = root.createDiv({cls: HTMLCls.HeadingContainer});
         let rootHeadingHeading = rootHeadingContainer.createDiv({cls: HTMLCls.heading});
@@ -17,8 +25,7 @@ export class UiHelper{
         let rootHTMLHeading = new htmlHeading(rootHeadingContainer, rootHeadingHeading, rootSubHeading)
         return rootHTMLHeading
     }
-    static createHTMLHeading(heading_title: string, depth: number): htmlHeading{
-        console.log(depth + heading_title)
+    createHTMLHeading(heading_title: string, depth: number, lineNbr: number, editor: Editor): htmlHeading{
         let displayed = depth == 1
         let root = document.createElement('div')
         let headingContainer = root.createEl('div', {cls: HTMLCls.HeadingContainer})
@@ -33,15 +40,24 @@ export class UiHelper{
 
         button.addEventListener('click', () => {
             if(newHeading.displayed){
-                this.hideHeading(newHeading)
-                console.log("click a !")
+                UiHelper.hideHeading(newHeading)
                 newHeading.displayed = false
             }else {
-                this.showHeading(newHeading)
-                console.log("click b !")
+                UiHelper.showHeading(newHeading)
                 newHeading.displayed = true
             }
         })
+
+        heading.addEventListener('click', () => {
+            const startPos: EditorPosition = { line: lineNbr, ch: 0 };        
+            editor.scrollIntoView({ from: startPos, to: startPos }, true);    
+            let line = editor.getLine(lineNbr)
+            console.log(line)   
+            console.log('click')
+        })
+
+
+
         return newHeading
     } 
 

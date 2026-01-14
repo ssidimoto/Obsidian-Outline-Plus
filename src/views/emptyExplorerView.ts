@@ -4,6 +4,7 @@ import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { maxHeadingDepth } from 'services/FileParser';
 import { FileParser } from 'services/FileParser';
 import { UiHelper } from 'services/UiHelper';
+import { Editor, EditorPosition } from 'obsidian';
 
 export const VIEW_TYPE_FILE_TREE = 'file-tree-view';
 
@@ -25,8 +26,13 @@ export class FileTreeView extends ItemView {
 
   tree: HeadingsTree;
 
-  constructor(leaf: WorkspaceLeaf) {
+  fileParser: FileParser
+  uiHelper: UiHelper
+
+  constructor(leaf: WorkspaceLeaf, fileParser: FileParser, uiHelper: UiHelper) {
     super(leaf);
+    this.fileParser = fileParser
+    this.uiHelper = uiHelper
   }
 
   getViewType() {
@@ -49,20 +55,22 @@ export class FileTreeView extends ItemView {
     // Listen for editor content changes
     this.app.workspace.on('editor-change', editor => {
       let content = editor.getDoc().getValue()
-          this.buildUiTree(content)
+          this.buildUiTree(content, editor)
     })
+
+    this.app.workspace.on
   }
 
-  buildUiTree(editorContent: string){
+  buildUiTree(editorContent: string, editor: Editor){
     // Clear previous tree
     this.containerEl.querySelectorAll('.heading-container').forEach(el => el.remove());
 
     let htmlRootHeading = UiHelper.createRootHtmlHeading(this.containerEl)
     let rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), htmlRootHeading)
-    let root = new HeadingNode(rootHeading, -1)
+    let root = new HeadingNode(rootHeading, -1, -1)
     this.tree = new HeadingsTree(root)
 
-    let nodes = FileParser.BuildAllHeadingItem(editorContent)
+    let nodes = this.fileParser.BuildAllHeadingItem(editorContent, editor)
     nodes.forEach((node) => this.tree.addNode(node))
   }
   

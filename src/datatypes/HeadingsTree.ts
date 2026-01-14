@@ -7,10 +7,12 @@ export class HeadingNode {
     parent: HeadingNode;
     data: Heading;
     depth: number;
+    lineNbr: number
 
-    constructor(data: Heading, depth: number){
+    constructor(data: Heading, depth: number, lineNbr: number){
         this.data = data
         this.depth = depth
+        this.lineNbr = lineNbr
     }
 
     addNode(node: HeadingNode, curr_depth: number){

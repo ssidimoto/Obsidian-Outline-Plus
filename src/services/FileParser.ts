@@ -1,6 +1,7 @@
 import { Heading, htmlHeading } from "datatypes/Heading";
 import { HeadingNode } from "datatypes/HeadingsTree";
 import { UiHelper } from "./UiHelper";
+import { App, Editor } from "obsidian";
 
 /**
  * FileParser service
@@ -19,7 +20,15 @@ import { UiHelper } from "./UiHelper";
  * - We determine the heading depth by counting the number of leading '#' characters.
  **/
 export const maxHeadingDepth = 6
+
 export class FileParser {
+	workspace: App
+	uiHelper: UiHelper
+
+	constructor(workspace: App, uiHelper: UiHelper){
+		this.workspace = workspace
+		this.uiHelper = uiHelper
+	}
 	// Match Markdown headings (levels 1..6) at the start of lines.
 	static pattern: RegExp = /^#{1,6} .*/gm
 
@@ -28,20 +37,25 @@ export class FileParser {
 	 * @param doc - full document text
 	 * @returns array of objects: { headLine: string, depth: number }
 	 */
-	static getAllHeadingsWithLevels(doc: string): { headLine: string; depth: number }[] {
-		const results: { headLine: string; depth: number }[] = []
-		// Use matchAll to get all matches with global flag
-		for (const match of doc.matchAll(this.pattern)) {
-			const headLine = match[0] ?? ""
-			// Extract leading hashes (e.g. "###") and count them to get the depth
-			const hashMatch = headLine.match(/^#{1,6}/)
-			const depth = hashMatch ? hashMatch[0].length : 0
-			results.push({ headLine: headLine.substring(depth).trim(), depth })
-		}
-		return results
+	getAllHeadingsWithLevels(doc: string): { headLine: string; depth: number; lineNbr: number }[] {
+		const results: { headLine: string; depth: number; lineNbr: number }[] = [];
+		const lines = doc.split('\n');  // Split once: O(n)
+		
+		lines.forEach((line, index) => {
+			// Check if line is a heading
+			let hashMatch = line.match(/^#{1,6} /);
+			if (hashMatch) {
+			let depth = hashMatch[0].trim().length;  // Count '#' characters
+			let headLine = line.substring(depth).trim();  // Extract text after hashes
+			let lineNbr = index;  // Convert to 1-based line number
+			results.push({ headLine, depth, lineNbr });
+			}
+		});
+		
+		return results;
 	}
 
-	static buildAllItemsNodes(inOrderHeadings: { headLine: string; depth: number }[]): HeadingNode[] {
+	buildAllItemsNodes(inOrderHeadings: { headLine: string; depth: number, lineNbr: number }[], editor: Editor): HeadingNode[] {
 		const multiLevellevel = Array(maxHeadingDepth).fill(0);
 		let currDepth = 0;
 
@@ -61,18 +75,16 @@ export class FileParser {
 				multiLevellevel[arr_level] += 1
 				currDepth = arr_level
 			}
-			let uiElem = UiHelper.createHTMLHeading(item.headLine, item.depth)
+			let uiElem = this.uiHelper.createHTMLHeading(item.headLine, item.depth, item.lineNbr, editor)
 			let heading = new Heading(item.headLine, multiLevellevel.slice(), uiElem)
-			let node = new HeadingNode(heading, currDepth)
+			let node = new HeadingNode(heading, currDepth, item.lineNbr)
 			itemArray.push(node)
 		});
 		return itemArray
 	}
 	
-	static BuildAllHeadingItem(doc: string){
+	BuildAllHeadingItem(doc: string, editor: Editor){
 		let headingObj = this.getAllHeadingsWithLevels(doc)
-    	return this.buildAllItemsNodes(headingObj)
+    	return this.buildAllItemsNodes(headingObj, editor)
 	}
-
-	
 }
