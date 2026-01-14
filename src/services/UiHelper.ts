@@ -48,13 +48,33 @@ export class UiHelper{
             }
         })
 
-        heading.addEventListener('click', () => {
-            const startPos: EditorPosition = { line: lineNbr, ch: 0 };        
-            editor.scrollIntoView({ from: startPos, to: startPos }, true);    
-            let line = editor.getLine(lineNbr)
-            console.log(line)   
-            console.log('click')
-        })
+        heading.addEventListener('click', async () => {
+            try {
+                const line = editor.getLine(lineNbr);
+                const headLine = line.substring(depth).trim();
+                const highlightedHeadLine = "==" + headLine + "==";
+                
+                const startPos: EditorPosition = { line: lineNbr, ch: depth + 1 };
+                const endPos: EditorPosition = { line: lineNbr, ch: depth + headLine.length + 1 };
+                
+                // Highlight the heading
+                editor.replaceRange(highlightedHeadLine, startPos, endPos);
+                editor.scrollIntoView({ from: startPos, to: startPos }, true);
+                
+                // Wait 3 seconds
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // Restore original heading
+                const restoreEndPos: EditorPosition = { line: lineNbr, ch: depth + highlightedHeadLine.length + 1 };
+                editor.replaceRange(headLine, startPos, restoreEndPos);
+                editor.setCursor(startPos);
+
+                //handle problem when click rapidly on diffrent views
+
+            } catch (error) {
+                console.error('Error highlighting heading:', error);
+            }
+        });
 
 
 
