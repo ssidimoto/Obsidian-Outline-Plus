@@ -22,7 +22,7 @@ export class UiHelper{
         let rootHeadingContainer = root.createDiv({cls: HTMLCls.HeadingContainer});
         let rootHeadingHeading = rootHeadingContainer.createDiv({cls: HTMLCls.heading});
         let rootSubHeading = rootHeadingContainer.createDiv({cls: HTMLCls.SubHeading});
-        let rootHTMLHeading = new htmlHeading(rootHeadingContainer, rootHeadingHeading, rootSubHeading)
+        let rootHTMLHeading = new htmlHeading(rootHeadingContainer, rootHeadingHeading, rootSubHeading, true, Array(maxHeadingDepth).fill(0), 0)
         return rootHTMLHeading
     }
     createHTMLHeading(heading_title: string, depth: number, lineNbr: number, editor: Editor): htmlHeading{

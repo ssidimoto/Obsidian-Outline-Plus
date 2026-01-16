@@ -5,10 +5,12 @@ export class HeadingNode<T extends Itemhierarchy> {
     parent: HeadingNode<T>;
     data: T;
     depth: number;
+    id: number
 
-    constructor(data: T, depth: number){
+    constructor(data: T, depth: number, id: number){
         this.data = data
         this.depth = depth
+        this.id = id
     }
 
     addNode(node: HeadingNode<T>, curr_depth: number){

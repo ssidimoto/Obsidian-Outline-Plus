@@ -1,25 +1,22 @@
 import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App} from 'obsidian';
-import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/emptyExplorerView';
+import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
 import { Console } from 'console';
-import { FileParser, maxHeadingDepth } from 'services/FileParser';
 import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { Heading } from 'datatypes/Heading';
 import { UiHelper } from 'services/UiHelper';
+import { TreeFileViewModel } from 'HeadingTreeViewModel';
 
-export default class ExamplePlugin extends Plugin {
+export default class FileTreeViewPlugin extends Plugin {
 
   uiHelper: UiHelper
-  fileParser: FileParser
+  vm: TreeFileViewModel
   
   async onload() {
-
-    let uiHelper = new UiHelper(this.app)
-    this.uiHelper = uiHelper
-    this.fileParser = new FileParser(this.app, uiHelper)
-
+    console.log("loaded !")
+    this.vm = new TreeFileViewModel(this)
     this.registerView(
       VIEW_TYPE_FILE_TREE,
-      (leaf) => new FileTreeView(leaf, this.fileParser, this.uiHelper)
+      (leaf) => new FileTreeView(leaf, this, this.vm)
     );
 
     this.addRibbonIcon('list-tree', 'Activate view', () => {
