@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, MarkdownView, WorkspaceLeaf } from 'obsidian';
 import { Heading, htmlHeading } from 'datatypes/Heading';
 import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { maxHeadingDepth } from 'services/FileParser';
@@ -53,10 +53,11 @@ export class FileTreeView extends ItemView {
     closeBtn.addEventListener('click', () => this.app.workspace.detachLeavesOfType(VIEW_TYPE_FILE_TREE));
     
     // Listen for editor content changes
-    this.app.workspace.on('editor-change', editor => {
-      let content = editor.getDoc().getValue()
-          this.buildUiTree(content, editor)
-    })
+    
+
+    this.registerEvent(
+      
+    );
   }
 
   buildUiTree(editorContent: string, editor: Editor){

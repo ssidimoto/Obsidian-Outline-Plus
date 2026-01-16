@@ -35,7 +35,6 @@ export class UiHelper{
         let subHeading = headingContainer.createDiv({cls: HTMLCls.SubHeading})
         let button = heading.createEl('button', {text: '>', cls: HTMLCls.HeadingButton})
         let text = heading.createEl('div', {text: heading_title, cls: HTMLCls.HeadingText})
-
         let newHeading = new htmlHeading(headingContainer, heading, subHeading)
 
         button.addEventListener('click', () => {

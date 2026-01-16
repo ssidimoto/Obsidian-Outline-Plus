@@ -1,14 +1,14 @@
+import { Itemhierarchy } from "./ItemHierarchy";
 
 
-export class Heading{
+export class Heading extends Itemhierarchy{
     headLine: string;
-    uiElem: htmlHeading;
-    index: number[];
+    lineNbr: number;
     
-    constructor(headLine: string, index: number[], uiElem: htmlHeading){
+    constructor(headLine: string, index: number[], lineNbr: number){
+        super(index)
         this.headLine = headLine;
-        this.uiElem = uiElem;
-        this.index = index
+        this.lineNbr = lineNbr
     }
 }
 
