@@ -57,8 +57,6 @@ export class FileTreeView extends ItemView {
       let content = editor.getDoc().getValue()
           this.buildUiTree(content, editor)
     })
-
-    this.app.workspace.on
   }
 
   buildUiTree(editorContent: string, editor: Editor){
@@ -73,7 +71,6 @@ export class FileTreeView extends ItemView {
     let nodes = this.fileParser.BuildAllHeadingItem(editorContent, editor)
     nodes.forEach((node) => this.tree.addNode(node))
   }
-  
   async onClose() {
     // Nothing to clean up.
   }

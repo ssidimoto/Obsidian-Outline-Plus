@@ -34,7 +34,7 @@ export class UiHelper{
         let heading = headingContainer.createDiv({cls: HTMLCls.heading})
         let subHeading = headingContainer.createDiv({cls: HTMLCls.SubHeading})
         let button = heading.createEl('button', {text: '>', cls: HTMLCls.HeadingButton})
-        heading.createEl('div', {text: heading_title, cls: HTMLCls.HeadingText})
+        let text = heading.createEl('div', {text: heading_title, cls: HTMLCls.HeadingText})
 
         let newHeading = new htmlHeading(headingContainer, heading, subHeading)
 
@@ -47,8 +47,8 @@ export class UiHelper{
                 newHeading.displayed = true
             }
         })
-
-        heading.addEventListener('click', async () => {
+        //warning if user is in read mode it doesnt work. to fix next
+        text.addEventListener('click', async () => {
             try {
                 const line = editor.getLine(lineNbr);
                 const headLine = line.substring(depth).trim();
@@ -110,3 +110,4 @@ export class UiHelper{
         });  
     }
 }
+//html tree with id. each heading has an id. when build htmlheadingtree use these same id. store all html node in a dictionnary to find them fast
