@@ -119,37 +119,41 @@ export class TreeFileViewModel{
 
         let view = fileView.currentMode
         if(view.type == "preview" || view.type == "source" ){
-            //this.HighlightEditorLine(node.data.lineNbr, node.depth, fileView)    
-            view.applyScroll(node?.data.lineNbr - topLinePadding)    
+            view.applyScroll(node?.data.lineNbr - topLinePadding)
+            this.highlightHeading(node.data.lineNbr, node.depth, fileView, node.data.headLine)    
+  
         }
     }
     OnHeadingButtonClicked(node: htmlHeading){
        node.subHeading.hidden = !node.subHeading.hidden
     }
 
-    async HighlightEditorLine(lineNbr :number, depth: number, fileView: any){
-        console.log("edit !")
+    async highlightHeading(lineNbr: number, depth: number, fileView: any, heading: string) {
+        setTimeout(() => {}, 1000);
+        let containerEl = fileView.containerEl
+        // Get the DOM element for the line in the editor
+        const type = fileView.currentMode.type
+        let selector = (type == 'source')? `.cm-header-${depth + 1}`: `h${depth + 1}`
+
         if(fileView.editMode){
-            console.log(depth)
-            let editor = fileView.editor
-        
-            const line = editor.getLine(lineNbr);
-            const headLine = line.substring(depth + 2);
-            const highlightedHeadLine = "==" + headLine + "==";
+            const lineElements = containerEl.querySelectorAll(selector);
+            if (lineElements.length === 0) return;
             
-            const startPos: EditorPosition = { line: lineNbr, ch: depth + 2 };
-            const endPos: EditorPosition = { line: lineNbr, ch: depth + headLine.length + 2 };
-            
-            // Highlight the heading
-            editor.replaceRange(highlightedHeadLine, startPos, endPos);
-            
-            // Wait 3 seconds
-            await new Promise(resolve => setTimeout(resolve, 3000));
-            
-            // Restore original heading
-            const restoreEndPos: EditorPosition = { line: lineNbr, ch: depth + highlightedHeadLine.length + 2 };
-            editor.replaceRange(headLine, startPos, restoreEndPos);
-            editor.setCursor(startPos);
+            // Iterate through all heading elements to find the one matching the heading text
+            for (let i = 0; i < lineElements.length; i++) {
+                const headingTextEl = lineElements[i];
+                console.log(headingTextEl.dataset.heading.trim() + "/" + heading.trim())
+                console.log(headingTextEl.dataset.heading.trim() == heading.trim())
+                //bug for h3 headers to fix
+                if (headingTextEl.textContent.trim() == heading.trim() || headingTextEl.dataset.heading.trim() == heading.trim()) {
+                    console.log("flash")
+                    headingTextEl.addClass('is-flashing');
+                    setTimeout(() => {
+                        headingTextEl.removeClass('is-flashing');
+                    }, 3000);
+                    break;
+                }
+            }
         }
     }
 }

@@ -70,7 +70,6 @@ export class TreeFileUi{
 
         text.addEventListener('click', () => {
             this.viewModel.OnHeadingClicked(node.id)
-            console.log("clicked !")
         })
 
         button.addEventListener('click', () => {
