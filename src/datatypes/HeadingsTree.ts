@@ -100,6 +100,4 @@ export class HeadingsTree<T extends Itemhierarchy> {
             nodeToRemove.remove()
         }
     }
-
-    
 }

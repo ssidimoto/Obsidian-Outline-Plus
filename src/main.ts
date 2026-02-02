@@ -3,12 +3,10 @@ import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
 import { Console } from 'console';
 import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
 import { Heading } from 'datatypes/Heading';
-import { UiHelper } from 'services/UiHelper';
-import { TreeFileViewModel } from 'HeadingTreeViewModel';
+import { TreeFileViewModel } from 'TreeFileViewModel';
 
 export default class FileTreeViewPlugin extends Plugin {
 
-  uiHelper: UiHelper
   vm: TreeFileViewModel
   
   async onload() {
