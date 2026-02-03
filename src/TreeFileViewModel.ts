@@ -1,11 +1,14 @@
 import { Heading, htmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import ExamplePlugin from "main";
-import { App, Component, EditorPosition, MarkdownView, } from "obsidian";
-import { BehaviorSubject } from 'rxjs'
+import { App, Component, Editor, EditorPosition, MarkdownView, } from "obsidian";
+import { off } from "process";
+import { BehaviorSubject, Head } from 'rxjs'
+import { similarity } from "services/helper";
 
 export const maxHeadingDepth = 6
 const topLinePadding = 8
+const LATEX_REGEX = /\$(.+?)\$/g;
 
 export type TreeLatestChange = {
   action: TreeAction
@@ -45,7 +48,6 @@ export class TreeFileViewModel{
     }
 
     init(){
-        console.log("init")
         const rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), 0);
         const root = new HeadingNode(rootHeading, -1, 0);
         this.tree = new HeadingsTree(root);
@@ -69,6 +71,7 @@ export class TreeFileViewModel{
         )
     }
     buildHeadingTree(doc: string): void {
+        console.log("builed tree")
         this.tree.root.childrens = []
         this.nodeDict.clear()
         this.change.next(new TreeChange(TreeAction.destroy))
@@ -110,7 +113,7 @@ export class TreeFileViewModel{
         return this.id++
     }
 
-    OnHeadingClicked(id: number){
+    async OnHeadingClicked(id: number){
         const fileView = (this.plugin.app.workspace as any).getActiveFileView();
         const node = this.nodeDict.get(id)
         if(node == undefined){
@@ -120,40 +123,142 @@ export class TreeFileViewModel{
         let view = fileView.currentMode
         if(view.type == "preview" || view.type == "source" ){
             view.applyScroll(node?.data.lineNbr - topLinePadding)
-            this.highlightHeading(node.data.lineNbr, node.depth, fileView, node.data.headLine)    
-  
+            await new Promise(resolve => setTimeout(resolve, 100))
+            let elem: Element | undefined
+
+            if(view.type == "preview"){
+                elem = this.getElementPreview(node, fileView.containerEl, fileView.editMode.editor)
+            }else{
+                elem = this.getElementEdit(node, fileView.containerEl, fileView.editMode.editor)
+            }
+
+            elem?.addClass('is-flashing');
+            setTimeout(() => {
+                elem?.removeClass('is-flashing');
+            }, 3000);
         }
     }
     OnHeadingButtonClicked(node: htmlHeading){
        node.subHeading.hidden = !node.subHeading.hidden
     }
 
-    async highlightHeading(lineNbr: number, depth: number, fileView: any, heading: string) {
-        setTimeout(() => {}, 1000);
-        let containerEl = fileView.containerEl
-        // Get the DOM element for the line in the editor
-        const type = fileView.currentMode.type
-        let selector = (type == 'source')? `.cm-header-${depth + 1}`: `h${depth + 1}`
+    private cleanLatex(text: string): string {
+        return text.replace(LATEX_REGEX, "").trim();
+    }
 
-        if(fileView.editMode){
-            const lineElements = containerEl.querySelectorAll(selector);
-            if (lineElements.length === 0) return;
+    private calculateSiblingScore(
+        node: HeadingNode<Heading>,
+        editor: Editor,
+        offsets: number[],
+        direction: 'next' | 'prev',
+        elem: Element,
+        nextSibling : (elem: Element, offset: number) => Element|null
+    ): number {
+        let bestScore = 0;
+
+        for (const offset of offsets) {
             
-            // Iterate through all heading elements to find the one matching the heading text
-            for (let i = 0; i < lineElements.length; i++) {
-                const headingTextEl = lineElements[i];
-                console.log(headingTextEl.dataset.heading.trim() + "/" + heading.trim())
-                console.log(headingTextEl.dataset.heading.trim() == heading.trim())
-                //bug for h3 headers to fix
-                if (headingTextEl.textContent.trim() == heading.trim() || headingTextEl.dataset.heading.trim() == heading.trim()) {
-                    console.log("flash")
-                    headingTextEl.addClass('is-flashing');
-                    setTimeout(() => {
-                        headingTextEl.removeClass('is-flashing');
-                    }, 3000);
-                    break;
-                }
+            const siblingText = nextSibling(elem, offset)?.textContent || ""
+            const lineNbr = node.data.lineNbr + offset;
+            if (lineNbr < 0 || lineNbr >= editor.lineCount()) continue;
+
+            const editorLine = this.cleanLatex(editor.getLine(lineNbr));
+            const truncatedText = direction === 'next'
+                ? siblingText.substring(0, editorLine.length)
+                : siblingText.substring(siblingText.length - editorLine.length);
+            console.log(`offset : ${offset}, ${editorLine} vs ${siblingText}`)
+            if (editorLine === "" && truncatedText === "") continue;
+
+            const score = similarity(editorLine, truncatedText);
+            console.log(`score-offset : ${score}`)
+            bestScore = Math.max(bestScore, score);
+        }
+
+        return bestScore;
+    }
+
+    private calculateTotalSiblingScore(
+        element: HTMLElement,
+        node: HeadingNode<Heading>,
+        editor: Editor,
+        nextSibling : (elem: Element, offset: number) => Element|null
+    ): number {
+        const parent = element.parentElement;
+        const nextScore = this.calculateSiblingScore(
+            node,
+            editor,
+            [1, 2],
+            'next',
+            element,
+            nextSibling
+        );
+        const prevScore = this.calculateSiblingScore(
+            node,
+            editor,
+            [-1, -2],
+            'prev',
+            element,
+            nextSibling
+        );
+        return nextScore + prevScore;
+    }
+
+    private findBestMatch(
+        elements: NodeListOf<Element>,
+        node: HeadingNode<Heading>,
+        editor: Editor,
+        matchFn: (el: HTMLElement) => boolean,
+        nextSibling : (elem: Element, offset: number) => Element|null
+    ): HTMLElement | undefined {
+        let bestMatch: { element: HTMLElement; score: number } | null = null;
+        console.log(`# matches : ${elements.length}`)
+        for (let i = 0; i < elements.length; i++) {
+            const el = elements[i] as HTMLElement;
+            if (!matchFn(el)) continue;
+            console.log(`elem ${i}`)
+            const score = this.calculateTotalSiblingScore(el, node, editor, nextSibling);
+            if (bestMatch === null || score > bestMatch.score) {
+                bestMatch = { element: el, score };
             }
         }
+        return bestMatch?.element;
+    }
+
+    getElementPreview(node: HeadingNode<Heading>, containerEl: Element, editor: Editor): HTMLElement | undefined {
+        const lineElements = containerEl.querySelectorAll(`h${node.depth + 1}`);
+        if (lineElements.length === 0) return;
+
+        return this.findBestMatch(lineElements, node, editor, (el) => {
+            return el.dataset.heading?.trim() === node.data.headLine.trim();
+            }, 
+            (elem: Element, offset: number) => {
+                return elem.nextElementSibling
+            }
+        );
+    }
+
+    getElementEdit(node: HeadingNode<Heading>, containerEl: Element, editor: Editor): HTMLElement | undefined {
+        console.log("edit")
+        const lineElements = containerEl.querySelectorAll(`.cm-header-${node.depth + 1}`);
+        const parentElem = Array.from(lineElements, (elem) => elem.parentElement);
+        if (lineElements.length === 0) return;
+
+        const cleanedHeadLine = this.cleanLatex(node.data.headLine);
+        return this.findBestMatch(lineElements, node, editor, (el) => {
+            return el.textContent?.trim() === cleanedHeadLine;
+        }, (elem: Element, offset: number) => {
+            let currElem: Element|null = elem.parentElement
+            if(offset > 0) {
+                for(let i=0; i<offset; i++){
+                    currElem = currElem?.nextElementSibling || null
+                }
+            }else{
+                for(let i=0; i>offset; i--){
+                    currElem = currElem?.previousElementSibling || null
+                }
+            }
+            console.log(currElem)
+            return currElem
+        });
     }
 }

@@ -36,7 +36,6 @@ export class TreeFileUi{
         this.tree = new HeadingsTree<htmlHeading>(htmlHeadingNode)
 
         this.viewModel.change$.subscribe((change) => {
-            console.log(change)
             switch(change?.action) {
                 case TreeAction.add:
                     if(change.node) this.addNode(this.newNode(change.node))
@@ -109,8 +108,6 @@ export class TreeFileUi{
             const child = element as HTMLElement
             child.remove()
         });
-        console.log("clear")
-        console.log(this.tree)
     }
 }
 
