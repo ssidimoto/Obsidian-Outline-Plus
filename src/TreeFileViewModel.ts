@@ -225,6 +225,7 @@ export class TreeFileViewModel{
     }
 
     getElementPreview(node: HeadingNode<Heading>, containerEl: Element, editor: Editor): HTMLElement | undefined {
+        console.log("preview")
         const lineElements = containerEl.querySelectorAll(`h${node.depth + 1}`);
         if (lineElements.length === 0) return;
 
@@ -232,7 +233,7 @@ export class TreeFileViewModel{
             return el.dataset.heading?.trim() === node.data.headLine.trim();
             }, 
             (elem: Element, offset: number) => {
-                return elem.nextElementSibling
+                return elem.parentElement?.nextElementSibling || null
             }
         );
     }
@@ -252,7 +253,7 @@ export class TreeFileViewModel{
                 for(let i=0; i<offset; i++){
                     currElem = currElem?.nextElementSibling || null
                 }
-            }else{
+            }else{  
                 for(let i=0; i>offset; i--){
                     currElem = currElem?.previousElementSibling || null
                 }
