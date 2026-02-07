@@ -1,8 +1,5 @@
 import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App} from 'obsidian';
 import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
-import { Console } from 'console';
-import { HeadingNode, HeadingsTree } from 'datatypes/HeadingsTree';
-import { Heading } from 'datatypes/Heading';
 import { TreeFileViewModel } from 'TreeFileViewModel';
 
 export default class FileTreeViewPlugin extends Plugin {
@@ -11,10 +8,9 @@ export default class FileTreeViewPlugin extends Plugin {
   
   async onload() {
     console.log("loaded !")
-    this.vm = new TreeFileViewModel(this)
     this.registerView(
       VIEW_TYPE_FILE_TREE,
-      (leaf) => new FileTreeView(leaf, this, this.vm)
+      (leaf) => new FileTreeView(leaf, this)
     );
 
     this.addRibbonIcon('list-tree', 'Activate view', () => {

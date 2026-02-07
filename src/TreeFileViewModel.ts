@@ -36,11 +36,9 @@ export class TreeFileViewModel{
     tree: HeadingsTree<Heading>
     id: number = 1
     nodeDict: Map<number, HeadingNode<Heading>> = new Map()
-
+    fileName: string
     private change = new BehaviorSubject<TreeChange|null>(null)
-    
     readonly change$ = this.change.asObservable()
-
     constructor(plugin: ExamplePlugin){
         this.plugin = plugin
         this.init()
@@ -63,10 +61,11 @@ export class TreeFileViewModel{
         this.plugin.registerEvent(
            this.plugin.app.workspace.on('active-leaf-change', async () => {
                 const file = this.plugin.app.workspace.getActiveFile();
-                if(file) {
+                if(file && !this.fileName || file && this.fileName != file.basename) {
                     const content = await this.plugin.app.vault.read(file)
                     this.buildHeadingTree(content)
-                }                
+                    this.fileName = file.basename
+                }
             })
         )
     }
@@ -131,11 +130,12 @@ export class TreeFileViewModel{
             }else{
                 elem = this.getElementEdit(node, fileView.containerEl, fileView.editMode.editor)
             }
-
-            elem?.addClass('is-flashing');
-            setTimeout(() => {
-                elem?.removeClass('is-flashing');
-            }, 3000);
+            Array.from(elem?.parentElement?.children!!).forEach((element: Element) => {
+                element.addClass('is-flashing');
+                setTimeout(() => {
+                    element?.removeClass('is-flashing');
+                }, 3000); 
+            });
         }
     }
     OnHeadingButtonClicked(node: htmlHeading){
@@ -155,7 +155,6 @@ export class TreeFileViewModel{
         nextSibling : (elem: Element, offset: number) => Element|null
     ): number {
         let bestScore = 0;
-
         for (const offset of offsets) {
             
             const siblingText = nextSibling(elem, offset)?.textContent || ""
@@ -246,7 +245,7 @@ export class TreeFileViewModel{
 
         const cleanedHeadLine = this.cleanLatex(node.data.headLine);
         return this.findBestMatch(lineElements, node, editor, (el) => {
-            return el.textContent?.trim() === cleanedHeadLine;
+            return el.parentElement?.textContent?.trim() === cleanedHeadLine;
         }, (elem: Element, offset: number) => {
             let currElem: Element|null = elem.parentElement
             if(offset > 0) {
