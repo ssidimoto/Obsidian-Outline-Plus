@@ -14,7 +14,7 @@ export class HeadingNode<T extends Itemhierarchy> {
     }
 
     addNode(node: HeadingNode<T>, curr_depth: number){
-
+        
         if(node.depth == curr_depth){
 
             this.childrens.forEach((child) => {

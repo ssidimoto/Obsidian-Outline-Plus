@@ -1,4 +1,4 @@
-import { Heading, htmlHeading } from "datatypes/Heading";
+import { Heading, HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import ExamplePlugin from "main";
 import { App, Component, Editor, EditorPosition, MarkdownView, } from "obsidian";
@@ -138,8 +138,55 @@ export class TreeFileViewModel{
             });
         }
     }
-    OnHeadingButtonClicked(node: htmlHeading){
-       node.subHeading.hidden = !node.subHeading.hidden
+    OnHeadingButtonClicked(node: HtmlHeading){
+        const childrenEl = node.childrens as HTMLElement
+        if(node.IconEl.getAttribute("class")?.includes("is-collapsed")){
+            node.IconEl.removeClass("is-collapsed")
+            node.FolderEl.insertAdjacentElement("beforeend", childrenEl)
+            this.animateExpand(childrenEl)
+        }
+        else{
+            node.IconEl.addClass("is-collapsed")
+            this.animateCollapse(childrenEl)
+        }
+    }
+
+    private animateCollapse(childrenEl: HTMLElement){
+        if (!childrenEl.isConnected) return;
+        const startHeight = childrenEl.scrollHeight;
+        childrenEl.style.overflow = "hidden";
+        childrenEl.style.height = `${startHeight}px`;
+        childrenEl.style.transition = "height 150ms ease";
+        void childrenEl.offsetHeight;
+        childrenEl.style.height = "0px";
+
+        const onEnd = (event: TransitionEvent) => {
+            if (event.target !== childrenEl) return;
+            childrenEl.removeEventListener("transitionend", onEnd);
+            childrenEl.remove();
+            childrenEl.style.height = "";
+            childrenEl.style.overflow = "";
+            childrenEl.style.transition = "";
+        };
+        childrenEl.addEventListener("transitionend", onEnd);
+    }
+
+    private animateExpand(childrenEl: HTMLElement){
+        const targetHeight = childrenEl.scrollHeight;
+        childrenEl.style.overflow = "hidden";
+        childrenEl.style.height = "0px";
+        childrenEl.style.transition = "height 150ms ease";
+        void childrenEl.offsetHeight;
+        childrenEl.style.height = `${targetHeight}px`;
+
+        const onEnd = (event: TransitionEvent) => {
+            if (event.target !== childrenEl) return;
+            childrenEl.removeEventListener("transitionend", onEnd);
+            childrenEl.style.height = "";
+            childrenEl.style.overflow = "";
+            childrenEl.style.transition = "";
+        };
+        childrenEl.addEventListener("transitionend", onEnd);
     }
 
     private cleanLatex(text: string): string {

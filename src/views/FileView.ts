@@ -41,12 +41,13 @@ export class FileTreeView extends ItemView {
   async onOpen() {
     const container = this.contentEl;
     this.vm = new TreeFileViewModel(this.plugin)
-    this.ui = new TreeFileUi(this.vm, container)
-    container.createEl('style').textContent = this.heading_container_style
-    container.createEl('h4', { text: 'File tree' });
+    this.ui = new TreeFileUi(this.vm, container.createDiv())
+    // container.createEl('style').textContent = this.heading_container_style
+    // container.createEl('h4', { text: 'File tree' });
 
-    const closeBtn = container.createEl('button', { text: 'Close'});
-    closeBtn.addEventListener('click', () => this.app.workspace.detachLeavesOfType(VIEW_TYPE_FILE_TREE));
+    // const closeBtn = container.createEl('button', { text: 'Close'});
+    // closeBtn.addEventListener('click', () => this.app.workspace.detachLeavesOfType(VIEW_TYPE_FILE_TREE));
+    // create el from html 
   }
   async onClose() {
     

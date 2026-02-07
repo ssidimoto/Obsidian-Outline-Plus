@@ -12,21 +12,19 @@ export class Heading extends Itemhierarchy{
     }
 }
 
-export class htmlHeading extends Itemhierarchy{
-    headingContainer: HTMLElement;
-    heading: HTMLElement;
-    subHeading: HTMLElement;
-    displayed: Boolean;
-    index: number[];
+export class HtmlHeading extends Itemhierarchy{
+    FolderEl: HTMLElement
+    TitleEl: HTMLElement
+    IconEl: HTMLElement
+    childrens: HTMLElement
+    isItem: boolean
 
-    constructor(headingContainer: HTMLElement, heading: HTMLElement, 
-        subHeading: HTMLElement, displayed: Boolean = true, index: number[]){
+    constructor(FolderEl: HTMLElement, TitleEl: HTMLElement, IconEl: HTMLElement, childrens: HTMLElement, isItem: boolean, index: number[]){
         super(index)
-        this.headingContainer = headingContainer;
-        this.heading = heading;
-        this.subHeading = subHeading;
-        this.displayed = false
-        this.displayed = displayed
-
+        this.FolderEl = FolderEl
+        this.TitleEl = TitleEl
+        this.IconEl = IconEl
+        this.childrens = childrens
+        this.isItem = isItem
     }
 }
