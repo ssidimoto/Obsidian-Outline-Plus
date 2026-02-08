@@ -12,5 +12,4 @@ export class Heading extends Itemhierarchy{
         super(index)
         this.headLine = headLine;
     }
-
 }

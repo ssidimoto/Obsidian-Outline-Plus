@@ -1,18 +1,9 @@
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { Heading, HtmlHeading } from "datatypes/Heading";
-import { TreeFileViewModel } from "TreeFileViewModel";
-import { maxHeadingDepth , TreeAction} from "TreeFileViewModel";
-import { Head } from "rxjs";
+import { TreeFileViewModel } from "views/ViewModel/TreeFileViewModel";
+import { maxHeadingDepth , TreeAction} from "views/ViewModel/TreeFileViewModel";
 
-export const HTMLCls = {
-        HeadingContainer: "heading-container",
-        heading: "heading",
-        SubHeading: "sub-headings",
-        HeadingButton: "heading-button",
-        HeadingText: "heading-text"
-    }
-
-
+/** UI builder for the headings tree. */
 export class TreeFileUi{
     tree: HeadingsTree<HtmlHeading>
     nodeDict: Map<number, HeadingNode<HtmlHeading>> = new Map()
@@ -20,15 +11,19 @@ export class TreeFileUi{
     container: HTMLElement
 
 
+    /** Create the UI for the headings tree.
+     * @param viewModel View model that provides tree updates.
+     * @param container Root element to render into.
+     */
     constructor(viewModel: TreeFileViewModel, container: HTMLElement){
         this.viewModel = viewModel
         this.container = container
         this.init()
     }
 
+    /** Initialize root node and subscribe to model changes. */
     init(){
-        // let TreeFilecontainer = this.container.createEl("div").createEl("div")
-        // TreeFilecontainer.setAttribute("style", "width: 477px; height: 500px; margin-bottom: 0px;")
+        console.debug("TreeFileUi initialized");
 
         let rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), 0)
         let rootHeadingNode = new HeadingNode(rootHeading, -1, 0)
@@ -41,13 +36,11 @@ export class TreeFileUi{
             switch(change?.action) {
                 case TreeAction.add:
                     if(change.node) this.addNode(this.newNode(change.node))
-                    console.log("recieved add action")
                     break;
                 case TreeAction.delete: //TODO
                 case TreeAction.destroy:
                     this.tree.root.childrens = []
                     this.clearTreeHtml(this.tree.root.data)
-                    console.log("recieved destroy action")
                     break;
                 case TreeAction.nothing: //TODO
 
@@ -55,6 +48,9 @@ export class TreeFileUi{
         })
     }
 
+    /** Add a node to the UI tree.
+     * @param node HtmlHeading node to insert.
+     */
     addNode(node: HeadingNode<HtmlHeading>){
         this.tree.addNode(node)
         this.nodeDict.set(node.id, node)
@@ -64,16 +60,26 @@ export class TreeFileUi{
         console.log(node.parent.data.FolderEl)
     }
 
+    /** Append a child heading element into its parent.
+     * @param parent Parent heading element.
+     * @param child Child heading element.
+     */
     addHTMLinChild(parent:HtmlHeading, child: HtmlHeading){
         parent.childrens.insertAdjacentElement("beforeend", child.FolderEl)
     }
 
+    /** Remove all rendered child nodes from a heading.
+     * @param node The heading whose children should be cleared.
+     */
     clearTreeHtml(node: HtmlHeading){
         Array.from(node.childrens.children).forEach(element => {
             const child = element as HTMLElement
             child.remove()
         });
     }
+    /** Create an HtmlHeading node for rendering.
+     * @param node Source heading data node.
+     */
     newNode(node: HeadingNode<Heading>): HeadingNode<HtmlHeading>{
         console.log("creating new node")
         const folderEl = document.createElement("div");

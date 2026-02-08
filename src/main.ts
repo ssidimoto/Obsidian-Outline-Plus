@@ -1,6 +1,6 @@
 import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App} from 'obsidian';
 import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
-import { TreeFileViewModel } from 'TreeFileViewModel';
+import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
 
 export default class FileTreeViewPlugin extends Plugin {
 
