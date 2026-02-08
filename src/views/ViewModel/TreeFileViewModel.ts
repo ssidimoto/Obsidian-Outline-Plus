@@ -41,6 +41,8 @@ export class TreeFileViewModel{
     fileName: string
     private change = new BehaviorSubject<TreeChange|null>(null)
     readonly change$ = this.change.asObservable()
+    highlight: number = 0
+
     constructor(plugin: ExamplePlugin){
         this.plugin = plugin
         this.init()
@@ -56,7 +58,6 @@ export class TreeFileViewModel{
             this.plugin.app.workspace.on('editor-change', editor => {
                 let content = editor.getDoc().getValue()
                 this.buildHeadingTree(content)
-
             })
         )
 
@@ -140,8 +141,18 @@ export class TreeFileViewModel{
             const ranges = [{ from: startPos, to: endPos }];
 
             view.editor.scrollIntoView({ from: startPos, to: endPos }, true);
+            if(this.highlight > 0){
+                view.editor.removeHighlights(undefined)
+            }
             view.editor.addHighlights(ranges, "is-flashing")
-            setTimeout(() => {view.editor.removeHighlights(undefined)}, 3000);
+            this.highlight += 1;
+            setTimeout(() => {
+                if(this.highlight == 1){
+                    view.editor.removeHighlights(undefined)
+                    this.highlight = 0;
+                }
+                this.highlight -= 1;
+            }, 3000);
         }
     }
 

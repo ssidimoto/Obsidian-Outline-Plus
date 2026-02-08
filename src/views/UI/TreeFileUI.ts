@@ -57,7 +57,6 @@ export class TreeFileUi{
         this.addHTMLinChild(node.parent.data, node.data)
         node.parent.data.isItem = false
         node.parent.data.IconEl.setAttribute("style", "display: block;")
-        console.log(node.parent.data.FolderEl)
     }
 
     /** Append a child heading element into its parent.
@@ -81,7 +80,6 @@ export class TreeFileUi{
      * @param node Source heading data node.
      */
     newNode(node: HeadingNode<Heading>): HeadingNode<HtmlHeading>{
-        console.log("creating new node")
         const folderEl = document.createElement("div");
         folderEl.className = "tree-item nav-folder";
 
@@ -138,10 +136,13 @@ export class TreeFileUi{
         const headingNode = new HeadingNode<HtmlHeading>(htmlHeading, node.depth, node.id)
 
         iconContainer.addEventListener('click', (e) => {
+            e.stopPropagation()
             this.viewModel.OnHeadingButtonClicked(htmlHeading)
         })
 
-        titleEl.addEventListener('click', (e) => {
+        folderEl.addEventListener('click', (e) => {
+            e.stopPropagation()
+            console.log("clicked heading: ")
             this.viewModel.OnHeadingClicked(headingNode.id)
         })
         return headingNode

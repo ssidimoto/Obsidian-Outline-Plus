@@ -7,7 +7,6 @@ export default class FileTreeViewPlugin extends Plugin {
   vm: TreeFileViewModel
   
   async onload() {
-    console.log("loaded !")
     this.registerView(
       VIEW_TYPE_FILE_TREE,
       (leaf) => new FileTreeView(leaf, this)
