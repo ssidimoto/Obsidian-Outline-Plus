@@ -13,40 +13,73 @@ export class HeadingNode<T extends Itemhierarchy> {
         this.id = id
     }
 
-    addNode(node: HeadingNode<T>, curr_depth: number){
-        
-        if(node.depth == curr_depth){
-
-            this.childrens.forEach((child) => {
-                if(child.depth == node.depth && 
-                    child.data.index[curr_depth] == node.data.index[curr_depth]){
-
-                    throw Error("this node already exists")
-                }
-                else if(child.depth > node.depth && 
-                    child.data.index[curr_depth] == node.data.index[curr_depth]){
-                    node.childrens.push(child)
-                    child.parent = node
-
-                }
-            });
-            node.parent = this
-            this.childrens.push(node)
+    addNode(node: HeadingNode<T>, depth: number) {
+        if (node.depth === depth) {
+            this.insertSibling(node);
+            return;
         }
-        if(node.depth > this.depth){
-            let nodeAdded = false
-             this.childrens.forEach((child) => {
-                if(child.data.index[curr_depth] == node.data.index[curr_depth]){
-                    child.addNode(node, curr_depth + 1)
-                    nodeAdded = true
-                }
-            });
 
-            if(nodeAdded == false){
-                node.parent = this
-                this.childrens.push(node)
+        if (node.depth > depth) {
+            if (this.childrens.length === 0) {
+                this.attachChild(node);
+            return;
+            }
+            if (this.tryInsertAmongChildren(node)) return;
+                this.insertAfterLast(node);
             }
         }
+
+        private insertSibling(node: HeadingNode<T>) {
+            for (let i = 0; i < this.childrens.length; i++) {
+                const child = this.childrens[i]!;
+                if (node.depth === child.depth && node.data.lineNbr < child.data.lineNbr) {
+                    this.childrens.splice(i, 0, node);
+                    node.parent = this;
+                    return;
+                }
+            }
+            this.childrens.push(node);
+            node.parent = this;
+    }
+
+    private attachChild(node: HeadingNode<T>) {
+        this.childrens.push(node);
+        node.parent = this;
+    }
+
+    private tryInsertAmongChildren(node: HeadingNode<T>): boolean {
+        for (let i = 0; i < this.childrens.length; i++) {
+                const child = this.childrens[i]!;
+            if (node.depth > child.depth && node.data.lineNbr < child.data.lineNbr) {
+                const prev = this.childrens[i - 1];
+                if (prev) {
+                    prev.addNode(node, child.depth + 1);
+                } else {
+                    this.childrens.splice(0, 0, node);
+                    node.parent = this;
+                }
+                return true;
+            }
+            if (node.depth < child.depth && node.data.lineNbr < child.data.lineNbr) {
+                this.childrens.splice(i + 1, 0, node);
+                node.parent = this;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private insertAfterLast(node: HeadingNode<T>) {
+        const last = this.childrens.at(-1)!;
+        if (node.depth > last.depth && node.data.lineNbr > last.data.lineNbr) {
+            last.addNode(node, last.depth + 1);
+        } else {
+            this.childrens.push(node);
+            node.parent = this;
+        }
+    }
+
+    shiftLines(offset: number){
         return
     }
 
@@ -56,29 +89,8 @@ export class HeadingNode<T extends Itemhierarchy> {
         })
         this.childrens = [];
     }
-
-    findNode(node: {depth: number; index: number[]}, curr_depth: number): HeadingNode<T> | null{
-
-        if(node.depth == curr_depth){
-            let foundChild = null;
-            this.childrens.forEach((child) => {
-                if(child.depth == node.depth && 
-                    child.data.index[curr_depth] == node.index[curr_depth]){
-                    foundChild = child
-                }
-            });
-            return foundChild
-        }
-        if(node.depth > this.depth){
-             this.childrens.forEach((child) => {
-                if(child.data.index[curr_depth] == node.index[curr_depth]){
-                    child.findNode(node, curr_depth + 1)
-                }
-            });
-        }
-        return null
-    }
 }
+
 
 export class HeadingsTree<T extends Itemhierarchy> {
     root: HeadingNode<T>;
@@ -87,17 +99,17 @@ export class HeadingsTree<T extends Itemhierarchy> {
         this.root = root
     }
     addNode(node: HeadingNode<T>){
-        this.root.addNode(node, 0)
+        this.root.addNode(node, 1)
     }
 
-    findNode(node: {depth: number; index: number[]}, curr_depth: number){
-        this.root.findNode(node, 0)
-    }
+    // findNode(node: {depth: number; index: number[]}, curr_depth: number){
+    //     this.root.findNode(node, 0)
+    // }
 
-    removeNode(node: {depth: number; index: number[]}, curr_depth: number){
-        let nodeToRemove = this.root.findNode(node, 0)
-        if(nodeToRemove != null){
-            nodeToRemove.remove()
-        }
-    }
+    // removeNode(node: {depth: number; index: number[]}, curr_depth: number){
+    //     let nodeToRemove = this.root.findNode(node, 0)
+    //     if(nodeToRemove != null){
+    //         nodeToRemove.remove()
+    //     }
+    // }
 }

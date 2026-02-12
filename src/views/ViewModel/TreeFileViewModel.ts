@@ -7,6 +7,7 @@ import { BehaviorSubject, Head } from 'rxjs'
 export const maxHeadingDepth = 6
 const topLinePadding = 8
 const LATEX_REGEX = /\$(.+?)\$/g;
+const HEADING_REGEX = /^#{1,6} /
 
 export type TreeLatestChange = {
   action: TreeAction
@@ -51,8 +52,8 @@ export class TreeFileViewModel{
 
     /** Initialize listeners and root tree. */
     init(){
-        const rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), 0);
-        const root = new HeadingNode(rootHeading, -1, 0);
+        const rootHeading = new Heading("Tree File Structure", 0, 0);
+        const root = new HeadingNode(rootHeading, 0, 0);
         this.tree = new HeadingsTree(root);
         this.plugin.registerEvent(
             this.plugin.app.workspace.on('editor-change', editor => {
@@ -83,35 +84,44 @@ export class TreeFileViewModel{
 
         const multiLevelCount = Array(maxHeadingDepth).fill(0);
         const lines = doc.split('\n');
-        let currDepth = 0;
+        if(!lines) return
 
-        lines.forEach((line, lineNbr) => {
-            const hashMatch = line.match(/^#{1,6} /);
-            if (hashMatch){
+        let i = 0;
+        while (i < lines.length && !lines[i]!.match(HEADING_REGEX)) {
+            i++;
+        }
+        if (i >= lines.length) return;
 
-                const depth = hashMatch[0].trim().length;
-                const headLine = line.substring(depth).trim();
-                const arrLevel = depth - 1;
+        const firstMatch = lines[i]!.match(HEADING_REGEX)!
+        const firstDepth = firstMatch[0].trim().length;
+        const firstHeading = new Heading(lines[i]!.substring(firstDepth).trim(), i, 0);
+        let prevHeading: HeadingNode<Heading> = new HeadingNode(firstHeading, firstDepth, this.getId());
+        prevHeading.data.width = 0;
 
-                // Update level counters
-                if (currDepth === arrLevel) {
-                    multiLevelCount[currDepth] += 1;
-                } else if (currDepth < arrLevel) {
-                    multiLevelCount[arrLevel] = 1;
-                    currDepth = arrLevel;
-                } else if (currDepth > arrLevel) {
-                    multiLevelCount.fill(0, arrLevel + 1, maxHeadingDepth - 1);
-                    multiLevelCount[arrLevel] += 1;
-                    currDepth = arrLevel;
-                }
-                const id = this.getId()
-                const heading = new Heading(headLine, multiLevelCount.slice(), lineNbr);
-                const node = new HeadingNode(heading, currDepth, id);
-                this.tree.addNode(node)
-                this.nodeDict.set(id, node)
-                this.change.next(new TreeChange(TreeAction.add, node))
+        for (let j = i + 1; j < lines.length; j++) {
+            const match = lines[j]!.match(HEADING_REGEX)
+            if (match) {
+                const depth = match[0].trim().length;
+                const heading = new Heading(lines[j]!.substring(depth).trim(), j, 0);
+                const node = new HeadingNode(heading, depth, this.getId());
+
+                const width = j - prevHeading.data.lineNbr
+                prevHeading.data.width = width
+                this.nodeDict.set(prevHeading.id, prevHeading)
+                this.tree.addNode(prevHeading)
+                this.change.next(new TreeChange(TreeAction.add, prevHeading))
+                console.log(prevHeading)
+                prevHeading = node
             }
-        });
+        }
+
+        prevHeading.data.width = prevHeading.data.lineNbr - lines.length
+        this.nodeDict.set(prevHeading.id, prevHeading)
+        this.tree.addNode(prevHeading)
+        this.change.next(new TreeChange(TreeAction.add, prevHeading))
+        console.log(prevHeading)
+        console.log(this.tree)
+
     }
 
     /** Generate a monotonically increasing node id. */
@@ -150,63 +160,10 @@ export class TreeFileViewModel{
                 if(this.highlight == 1){
                     view.editor.removeHighlights(undefined)
                     this.highlight = 0;
-                }
+                }else{
                 this.highlight -= 1;
+                }
             }, 3000);
         }
-    }
-
-    /** Toggle a heading node's expanded/collapsed state in the UI.
-     * @param node The heading UI node to toggle.
-     */
-    OnHeadingButtonClicked(node: HtmlHeading){
-        const childrenEl = node.childrens as HTMLElement
-        if(node.IconEl.getAttribute("class")?.includes("is-collapsed")){
-            node.IconEl.removeClass("is-collapsed")
-            node.FolderEl.insertAdjacentElement("beforeend", childrenEl)
-            this.animateExpand(childrenEl)
-        }
-        else{
-            node.IconEl.addClass("is-collapsed")
-            this.animateCollapse(childrenEl)
-        }
-    }
-
-    private animateCollapse(childrenEl: HTMLElement){
-        if (!childrenEl.isConnected) return;
-        const startHeight = childrenEl.scrollHeight;
-        childrenEl.style.overflow = "hidden";
-        childrenEl.style.height = `${startHeight}px`;
-        childrenEl.style.transition = "height 150ms ease";
-        void childrenEl.offsetHeight;
-        childrenEl.style.height = "0px";
-
-        const onEnd = (event: TransitionEvent) => {
-            if (event.target !== childrenEl) return;
-            childrenEl.removeEventListener("transitionend", onEnd);
-            childrenEl.remove();
-            childrenEl.style.height = "";
-            childrenEl.style.overflow = "";
-            childrenEl.style.transition = "";
-        };
-        childrenEl.addEventListener("transitionend", onEnd);
-    }
-
-    private animateExpand(childrenEl: HTMLElement){
-        const targetHeight = childrenEl.scrollHeight;
-        childrenEl.style.overflow = "hidden";
-        childrenEl.style.height = "0px";
-        childrenEl.style.transition = "height 150ms ease";
-        void childrenEl.offsetHeight;
-        childrenEl.style.height = `${targetHeight}px`;
-
-        const onEnd = (event: TransitionEvent) => {
-            if (event.target !== childrenEl) return;
-            childrenEl.removeEventListener("transitionend", onEnd);
-            childrenEl.style.height = "";
-            childrenEl.style.overflow = "";
-            childrenEl.style.transition = "";
-        };
-        childrenEl.addEventListener("transitionend", onEnd);
     }
 }

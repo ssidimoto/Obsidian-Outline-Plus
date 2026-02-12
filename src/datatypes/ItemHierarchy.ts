@@ -1,15 +1,9 @@
 export class Itemhierarchy{
-    index: number[]
+    lineNbr: number;
+    width: number;
 
-    constructor(index: number[]){
-        this.index = index
-    }
-}
-
-export class Heading extends Itemhierarchy{
-    headLine: string;
-    constructor(headLine: string, index: number[]){
-        super(index)
-        this.headLine = headLine;
+    constructor(lineNbr: number, width: number){
+        this.lineNbr = lineNbr
+        this.width = width
     }
 }

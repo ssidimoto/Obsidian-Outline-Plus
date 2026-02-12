@@ -3,12 +3,14 @@ import { Itemhierarchy } from "./ItemHierarchy";
 
 export class Heading extends Itemhierarchy{
     headLine: string;
-    lineNbr: number;
-    
-    constructor(headLine: string, index: number[], lineNbr: number){
-        super(index)
+
+    constructor(headLine: string, 
+        lineNbr: number, 
+        width: number
+    ){
+        super(lineNbr, width)
         this.headLine = headLine;
-        this.lineNbr = lineNbr
+        this.width = width;
     }
 }
 
@@ -19,8 +21,16 @@ export class HtmlHeading extends Itemhierarchy{
     childrens: HTMLElement
     isItem: boolean
 
-    constructor(FolderEl: HTMLElement, TitleEl: HTMLElement, IconEl: HTMLElement, childrens: HTMLElement, isItem: boolean, index: number[]){
-        super(index)
+    constructor(
+        FolderEl: HTMLElement, 
+        TitleEl: HTMLElement, 
+        IconEl: HTMLElement, 
+        childrens: HTMLElement, 
+        isItem: boolean, 
+        lineNbr: number, 
+        width: number
+    ){
+        super(lineNbr, width)
         this.FolderEl = FolderEl
         this.TitleEl = TitleEl
         this.IconEl = IconEl

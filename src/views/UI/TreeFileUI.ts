@@ -25,7 +25,7 @@ export class TreeFileUi{
     init(){
         console.debug("TreeFileUi initialized");
 
-        let rootHeading = new Heading("Tree File Structure", Array(maxHeadingDepth).fill(0), 0)
+        let rootHeading = new Heading("Tree File Structure", 0, 0)
         let rootHeadingNode = new HeadingNode(rootHeading, -1, 0)
 
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode)
@@ -132,20 +132,73 @@ export class TreeFileUi{
         folderSelf.appendChild(titleEl);
         folderEl.appendChild(folderSelf);
         folderEl.appendChild(children);
-        const htmlHeading = new HtmlHeading(folderEl, titleEl, iconContainer,  children, false, node.data.index)
+        const htmlHeading = new HtmlHeading(folderEl, titleEl, iconContainer,  children, false, node.data.lineNbr, node.data.width)
         const headingNode = new HeadingNode<HtmlHeading>(htmlHeading, node.depth, node.id)
 
         iconContainer.addEventListener('click', (e) => {
             e.stopPropagation()
-            this.viewModel.OnHeadingButtonClicked(htmlHeading)
+            this.OnHeadingButtonClicked(htmlHeading)
         })
 
         folderEl.addEventListener('click', (e) => {
             e.stopPropagation()
-            console.log("clicked heading: ")
             this.viewModel.OnHeadingClicked(headingNode.id)
         })
         return headingNode
+    }
+
+    /** Toggle a heading node's expanded/collapsed state in the UI.
+     * @param node The heading UI node to toggle.
+     */
+    OnHeadingButtonClicked(node: HtmlHeading){
+        const childrenEl = node.childrens as HTMLElement
+        if(node.IconEl.getAttribute("class")?.includes("is-collapsed")){
+            node.IconEl.removeClass("is-collapsed")
+            node.FolderEl.insertAdjacentElement("beforeend", childrenEl)
+            this.animateExpand(childrenEl)
+        }
+        else{
+            node.IconEl.addClass("is-collapsed")
+            this.animateCollapse(childrenEl)
+        }
+    }
+
+    private animateCollapse(childrenEl: HTMLElement){
+        if (!childrenEl.isConnected) return;
+        const startHeight = childrenEl.scrollHeight;
+        childrenEl.style.overflow = "hidden";
+        childrenEl.style.height = `${startHeight}px`;
+        childrenEl.style.transition = "height 150ms ease";
+        void childrenEl.offsetHeight;
+        childrenEl.style.height = "0px";
+
+        const onEnd = (event: TransitionEvent) => {
+            if (event.target !== childrenEl) return;
+            childrenEl.removeEventListener("transitionend", onEnd);
+            childrenEl.remove();
+            childrenEl.style.height = "";
+            childrenEl.style.overflow = "";
+            childrenEl.style.transition = "";
+        };
+        childrenEl.addEventListener("transitionend", onEnd);
+    }
+
+    private animateExpand(childrenEl: HTMLElement){
+        const targetHeight = childrenEl.scrollHeight;
+        childrenEl.style.overflow = "hidden";
+        childrenEl.style.height = "0px";
+        childrenEl.style.transition = "height 150ms ease";
+        void childrenEl.offsetHeight;
+        childrenEl.style.height = `${targetHeight}px`;
+
+        const onEnd = (event: TransitionEvent) => {
+            if (event.target !== childrenEl) return;
+            childrenEl.removeEventListener("transitionend", onEnd);
+            childrenEl.style.height = "";
+            childrenEl.style.overflow = "";
+            childrenEl.style.transition = "";
+        };
+        childrenEl.addEventListener("transitionend", onEnd);
     }
 }
 
