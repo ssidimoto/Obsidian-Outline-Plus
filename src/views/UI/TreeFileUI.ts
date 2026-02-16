@@ -2,6 +2,7 @@ import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { TreeFileViewModel } from "views/ViewModel/TreeFileViewModel";
 import { maxHeadingDepth , TreeAction} from "views/ViewModel/TreeFileViewModel";
+import { Head } from "rxjs";
 
 /** UI builder for the headings tree. */
 export class TreeFileUi{
@@ -37,10 +38,21 @@ export class TreeFileUi{
                 case TreeAction.add:
                     if(change.node) this.addNode(this.newNode(change.node))
                     break;
-                case TreeAction.delete: //TODO
+                case TreeAction.delete: 
+                    if(change.node) {
+                        const node = this.nodeDict.get(change.node as number)
+                        if(node) {
+                            this.tree.removeNode(node)
+                            this.clearTreeHtml(node)
+                        }
+                    }
+                    break;
                 case TreeAction.destroy:
                     this.tree.root.childrens = []
-                    this.clearTreeHtml(this.tree.root.data)
+                    this.nodeDict.clear()
+                    Array(this.tree.root.data.childrens).forEach((child) => {
+                        child.remove()
+                    })
                     break;
                 case TreeAction.nothing: //TODO
 
@@ -70,11 +82,13 @@ export class TreeFileUi{
     /** Remove all rendered child nodes from a heading.
      * @param node The heading whose children should be cleared.
      */
-    clearTreeHtml(node: HtmlHeading){
-        Array.from(node.childrens.children).forEach(element => {
+    clearTreeHtml(node: HeadingNode<HtmlHeading>){
+        let htmlNode = this.nodeDict.get(node.id)?.data
+        Array.from(htmlNode!.childrens.children).forEach(element => {
             const child = element as HTMLElement
-            child.remove()
+            node.parent!.data.childrens.insertAdjacentElement("beforeend", child)
         });
+        htmlNode?.FolderEl.remove()
     }
     /** Create an HtmlHeading node for rendering.
      * @param node Source heading data node.

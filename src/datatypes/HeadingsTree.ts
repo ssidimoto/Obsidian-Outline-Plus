@@ -13,6 +13,23 @@ export class HeadingNode<T extends Itemhierarchy> {
         this.id = id
     }
 
+    equals (other: HeadingNode<T>): boolean {
+        return this.data.equals(other.data) && this.depth === other.depth
+    }
+
+    //copy object with changes given in argumennt
+    copy(changes: Partial<HeadingNode<T>>, dataChanges?: Partial<T>): HeadingNode<T> {
+
+        const newData = dataChanges
+            ? this.data.copy(dataChanges)
+            : this.data
+
+        return new HeadingNode<T>(
+            changes.data ?? newData,
+            changes.depth ?? this.depth,
+            changes.id ?? this.id
+        )
+    }
     addNode(node: HeadingNode<T>, depth: number) {
         if (node.depth === depth) {
             this.insertSibling(node);
@@ -89,12 +106,17 @@ export class HeadingNode<T extends Itemhierarchy> {
         })
         this.childrens = [];
     }
-}
 
+    inorderTraversal(apply: (node: HeadingNode<T>) => void) {
+        apply(this)
+        this.childrens.forEach((child)=>{
+            child.inorderTraversal(apply)
+        })
+    }
+}
 
 export class HeadingsTree<T extends Itemhierarchy> {
     root: HeadingNode<T>;
-
     constructor(root: HeadingNode<T>){
         this.root = root
     }
@@ -102,14 +124,16 @@ export class HeadingsTree<T extends Itemhierarchy> {
         this.root.addNode(node, 1)
     }
 
+    inorderTraversal(apply: (node: HeadingNode<T>) => void) {
+        this.root.inorderTraversal(apply)
+    }
+
     // findNode(node: {depth: number; index: number[]}, curr_depth: number){
     //     this.root.findNode(node, 0)
     // }
 
-    // removeNode(node: {depth: number; index: number[]}, curr_depth: number){
-    //     let nodeToRemove = this.root.findNode(node, 0)
-    //     if(nodeToRemove != null){
-    //         nodeToRemove.remove()
-    //     }
-    // }
+    removeNode(node: HeadingNode<T>){
+        node.remove()
+    }
+    
 }

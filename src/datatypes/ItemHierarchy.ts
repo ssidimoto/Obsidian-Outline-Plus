@@ -1,4 +1,4 @@
-export class Itemhierarchy{
+export abstract class Itemhierarchy{
     lineNbr: number;
     width: number;
 
@@ -6,4 +6,8 @@ export class Itemhierarchy{
         this.lineNbr = lineNbr
         this.width = width
     }
+
+    abstract equals(other: Itemhierarchy): boolean;
+
+    abstract copy(changes: Partial<this>): this
 }
