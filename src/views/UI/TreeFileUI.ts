@@ -2,7 +2,6 @@ import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { TreeFileViewModel } from "views/ViewModel/TreeFileViewModel";
 import { maxHeadingDepth , TreeAction} from "views/ViewModel/TreeFileViewModel";
-import { Head } from "rxjs";
 
 /** UI builder for the headings tree. */
 export class TreeFileUi{
@@ -38,23 +37,10 @@ export class TreeFileUi{
                 case TreeAction.add:
                     if(change.node) this.addNode(this.newNode(change.node as HeadingNode<Heading>))
                     break;
-                case TreeAction.delete: 
-                    if(change.node) {
-                        const node = this.nodeDict.get(change.node as number)
-                        if(node) {
-                            this.clearTreeHtml(node)
-                            this.tree.removeNode(node)
-                        }
-                    }
-                    break;
+                case TreeAction.delete: //TODO
                 case TreeAction.destroy:
-                    console.log("destroying tree")
                     this.tree.root.childrens = []
-                    Array(this.tree.root.data.childrens).forEach((child) => {
-                        child.remove()
-                        console.log("removed")
-                    })
-                    this.nodeDict.clear()
+                    this.clearTreeHtml(this.tree.root.data)
                     break;
                 case TreeAction.nothing: //TODO
 
@@ -68,7 +54,6 @@ export class TreeFileUi{
     addNode(node: HeadingNode<HtmlHeading>){
         this.tree.addNode(node)
         this.nodeDict.set(node.id, node)
-        console.log(node)
         this.addHTMLinChild(node.parent.data, node.data)
         node.parent.data.isItem = false
         node.parent.data.IconEl.setAttribute("style", "display: block;")
@@ -82,16 +67,14 @@ export class TreeFileUi{
         parent.childrens.insertAdjacentElement("beforeend", child.FolderEl)
     }
 
-    /** Remove all rendered child nodes from a heading. Relink its children to its parent
+    /** Remove all rendered child nodes from a heading.
      * @param node The heading whose children should be cleared.
      */
-    clearTreeHtml(node: HeadingNode<HtmlHeading>){
-        let htmlNode = this.nodeDict.get(node.id)?.data
-        Array.from(htmlNode!.childrens.children).forEach(element => {
+    clearTreeHtml(node: HtmlHeading){
+        Array.from(node.childrens.children).forEach(element => {
             const child = element as HTMLElement
-            node.parent!.data.childrens.insertAdjacentElement("beforeend", child)
+            child.remove()
         });
-        htmlNode?.FolderEl.remove()
     }
     /** Create an HtmlHeading node for rendering.
      * @param node Source heading data node.

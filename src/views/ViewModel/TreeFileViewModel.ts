@@ -74,7 +74,7 @@ export class TreeFileViewModel{
                 this.prevSelection = this.currentSelection
                 this.currentSelection = {begin: Math.min(beginLine, endLine), end: Math.max(beginLine, endLine)}
 
-                this.DocDiffRange(content, editor.getDoc().lineCount())
+                this.DocDiffRange(content, editor.lineCount())
             })
         )
 
@@ -211,7 +211,7 @@ export class TreeFileViewModel{
     ParseNewDoc(doc: string, offset: number): {heading: Heading, depth: number}[]{
         let headings: {heading: Heading, depth: number}[]  = []
         const lines = doc.split('\n');
-        const changedLines = lines.slice(this.prevSelection.begin, this.prevSelection.end + offset + 1 )
+        const changedLines = lines.slice(this.prevSelection.begin, this.prevSelection.end + offset + 1)
         if(!lines) return []
 
         let i = 0;
@@ -243,6 +243,8 @@ export class TreeFileViewModel{
     
     }
     DocDiffRange(doc: string, newDocLines: number){
+        console.log("prev total lines: " + this.totalLines)
+        console.log("new total lines: " + newDocLines)
         let offset = newDocLines - this.totalLines
         const oldDoc = this.getPrevDocHeadings()
         const newDoc = this.ParseNewDoc(doc, offset)
@@ -268,7 +270,7 @@ export class TreeFileViewModel{
                         this.getId()
                     )
                     this.nodeArr[id] = newNode
-                    this.tree.addNode(newNode)
+                    this.tree.addNode(newNode, offset)
                     this.change.next(new TreeChange(TreeAction.add, newNode))
                     console.log("added node: " + newNode.data.toString())
                 }
@@ -278,7 +280,7 @@ export class TreeFileViewModel{
         for(let i = 0; i < oldDoc.length; i++){
             if(newDocMap.get(oldDoc[i]!.heading.toString()) == undefined){
                 let headingNode = this.nodeArr[oldDoc[i]!.id]
-                this.tree.removeNode(headingNode!)
+                this.tree.removeNode(headingNode!, offset)
                 this.change.next(new TreeChange(TreeAction.delete, headingNode!.id))
                 console.log("deleted node: " + headingNode?.data.toString())
             }

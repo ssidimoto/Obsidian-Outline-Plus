@@ -31,34 +31,35 @@ export class HeadingNode<T extends Itemhierarchy> {
             changes.id ?? this.id
         )
     }
-    addNode(node: HeadingNode<T>, depth: number){
+    addNode(node: HeadingNode<T>, depth: number, offset: number = 0){
         if (node.depth === depth) {
             this.insertSibling(node);
-            return;
         }
 
-        if (node.depth > depth) {
+        else if (node.depth > depth) {
             if (this.childrens.length === 0) {
                 this.attachChild(node);
-            return;
+
             }
-            if (this.tryInsertAmongChildren(node)) return;
-            this.insertAfterLast(node);
+
+            else if (!this.tryInsertAmongChildren(node)){
+                this.insertAfterLast(node);
+            }
         }
-        node.shiftLines(node.data.width)
+        node.shiftLines(offset)
     }
 
-        private insertSibling(node: HeadingNode<T>) {
-            for (let i = 0; i < this.childrens.length; i++) {
-                const child = this.childrens[i]!;
-                if (node.depth === child.depth && node.data.lineNbr < child.data.lineNbr) {
-                    this.childrens.splice(i, 0, node);
-                    node.parent = this;
-                    return;
-                }
+    private insertSibling(node: HeadingNode<T>) {
+        for (let i = 0; i < this.childrens.length; i++) {
+            const child = this.childrens[i]!;
+            if (node.depth === child.depth && node.data.lineNbr < child.data.lineNbr) {
+                this.childrens.splice(i, 0, node);
+                node.parent = this;
+                return;
             }
-            this.childrens.push(node);
-            node.parent = this;
+        }
+        this.childrens.push(node);
+        node.parent = this;
     }
 
     private attachChild(node: HeadingNode<T>) {
@@ -99,17 +100,22 @@ export class HeadingNode<T extends Itemhierarchy> {
     }
 
     shiftLines(offset: number){
+        console.log("shifting")
+        this.childrens.forEach((child) => {
+            if(child.data.lineNbr > this.data.lineNbr){
+                child.shift(offset)
+            }
+        })
 
-        if(offset > 0){
-            this.parent?.childrens?.forEach((child) => {
-                if(child.data.lineNbr > this.data.lineNbr){
-                    child.shift(offset)
-                }
-            })
-        }
+        this.parent.childrens.forEach((child) => {
+            if(child.data.lineNbr > this.data.lineNbr && child.id !== this.id){
+                child.shift(offset)
+            }
+        })
     }
     shift(offset: number){
         this.data.lineNbr += offset
+        console.log(`Node ${this.data.toString()} shifted by ${offset} lines to line ${this.data.lineNbr}`)
         this.childrens.forEach((child) => {
             child.shift(offset)
         })
@@ -138,8 +144,9 @@ export class HeadingsTree<T extends Itemhierarchy> {
     constructor(root: HeadingNode<T>){
         this.root = root
     }
-    addNode(node: HeadingNode<T>){
-        this.root.addNode(node, 1)
+    addNode(node: HeadingNode<T>, offset: number = 0){
+        this.root.addNode(node, 1, offset)
+        console.log(this)
     }
 
     inorderTraversal(apply: (node: HeadingNode<T>) => void, range: {begin: number, end: number}) {
@@ -152,8 +159,10 @@ export class HeadingsTree<T extends Itemhierarchy> {
     //     this.root.findNode(node, 0)
     // }
 
-    removeNode(node: HeadingNode<T>){
+    removeNode(node: HeadingNode<T>, offset: number = 0){
+        node.shiftLines(offset)
         node.remove()
+        console.log(this)
     }
     
 }
