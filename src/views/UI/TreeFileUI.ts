@@ -36,23 +36,25 @@ export class TreeFileUi{
         this.viewModel.change$.subscribe((change) => {
             switch(change?.action) {
                 case TreeAction.add:
-                    if(change.node) this.addNode(this.newNode(change.node))
+                    if(change.node) this.addNode(this.newNode(change.node as HeadingNode<Heading>))
                     break;
                 case TreeAction.delete: 
                     if(change.node) {
                         const node = this.nodeDict.get(change.node as number)
                         if(node) {
-                            this.tree.removeNode(node)
                             this.clearTreeHtml(node)
+                            this.tree.removeNode(node)
                         }
                     }
                     break;
                 case TreeAction.destroy:
+                    console.log("destroying tree")
                     this.tree.root.childrens = []
-                    this.nodeDict.clear()
                     Array(this.tree.root.data.childrens).forEach((child) => {
                         child.remove()
+                        console.log("removed")
                     })
+                    this.nodeDict.clear()
                     break;
                 case TreeAction.nothing: //TODO
 
@@ -66,6 +68,7 @@ export class TreeFileUi{
     addNode(node: HeadingNode<HtmlHeading>){
         this.tree.addNode(node)
         this.nodeDict.set(node.id, node)
+        console.log(node)
         this.addHTMLinChild(node.parent.data, node.data)
         node.parent.data.isItem = false
         node.parent.data.IconEl.setAttribute("style", "display: block;")
@@ -79,7 +82,7 @@ export class TreeFileUi{
         parent.childrens.insertAdjacentElement("beforeend", child.FolderEl)
     }
 
-    /** Remove all rendered child nodes from a heading.
+    /** Remove all rendered child nodes from a heading. Relink its children to its parent
      * @param node The heading whose children should be cleared.
      */
     clearTreeHtml(node: HeadingNode<HtmlHeading>){

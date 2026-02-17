@@ -1,4 +1,5 @@
 import { Itemhierarchy } from "datatypes/ItemHierarchy"
+import { off } from "process";
 
 export class HeadingNode<T extends Itemhierarchy> {
     childrens: HeadingNode<T>[] = []
@@ -30,7 +31,7 @@ export class HeadingNode<T extends Itemhierarchy> {
             changes.id ?? this.id
         )
     }
-    addNode(node: HeadingNode<T>, depth: number) {
+    addNode(node: HeadingNode<T>, depth: number){
         if (node.depth === depth) {
             this.insertSibling(node);
             return;
@@ -42,9 +43,10 @@ export class HeadingNode<T extends Itemhierarchy> {
             return;
             }
             if (this.tryInsertAmongChildren(node)) return;
-                this.insertAfterLast(node);
-            }
+            this.insertAfterLast(node);
         }
+        node.shiftLines(node.data.width)
+    }
 
         private insertSibling(node: HeadingNode<T>) {
             for (let i = 0; i < this.childrens.length; i++) {
@@ -97,7 +99,20 @@ export class HeadingNode<T extends Itemhierarchy> {
     }
 
     shiftLines(offset: number){
-        return
+
+        if(offset > 0){
+            this.parent?.childrens?.forEach((child) => {
+                if(child.data.lineNbr > this.data.lineNbr){
+                    child.shift(offset)
+                }
+            })
+        }
+    }
+    shift(offset: number){
+        this.data.lineNbr += offset
+        this.childrens.forEach((child) => {
+            child.shift(offset)
+        })
     }
 
     remove(){
@@ -105,12 +120,15 @@ export class HeadingNode<T extends Itemhierarchy> {
             child.parent = this.parent
         })
         this.childrens = [];
+        this.parent.childrens = this.parent.childrens.filter((child) => !child.equals(this))
+        this.shiftLines(-this.data.width)
     }
 
-    inorderTraversal(apply: (node: HeadingNode<T>) => void) {
-        apply(this)
+    inorderTraversal(apply: (node: HeadingNode<T>) => void, range: {begin: number, end: number}){
+        if(this.data.lineNbr > range.end) return
+        if(this.data.lineNbr >= range.begin) apply(this)
         this.childrens.forEach((child)=>{
-            child.inorderTraversal(apply)
+            child.inorderTraversal(apply, range)
         })
     }
 }
@@ -124,8 +142,10 @@ export class HeadingsTree<T extends Itemhierarchy> {
         this.root.addNode(node, 1)
     }
 
-    inorderTraversal(apply: (node: HeadingNode<T>) => void) {
-        this.root.inorderTraversal(apply)
+    inorderTraversal(apply: (node: HeadingNode<T>) => void, range: {begin: number, end: number}) {
+        this.root.childrens.forEach((child) => {
+            child.inorderTraversal(apply, range)
+        })
     }
 
     // findNode(node: {depth: number; index: number[]}, curr_depth: number){
