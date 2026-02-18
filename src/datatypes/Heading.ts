@@ -26,7 +26,7 @@ export class Heading extends Itemhierarchy{
 }
 
     toString(): string {
-        return `Heading: ${this.headLine}, Line: ${this.lineNbr}, Width: ${this.width}`
+        return `Heading: [${this.headLine}, Line: ${this.lineNbr}, Width: ${this.width}]`
     }
 }
 
@@ -56,17 +56,5 @@ export class HtmlHeading extends Itemhierarchy{
 
     equals(other: HtmlHeading): boolean {
         return this.TitleEl.innerText === other.TitleEl.innerText && this.lineNbr === other.lineNbr && this.width === other.width
-    }
-
-    copy(changes: Partial<HtmlHeading>): HtmlHeading {
-        return new HtmlHeading(
-            changes.FolderEl ?? this.FolderEl,
-            changes.TitleEl ?? this.TitleEl,
-            changes.IconEl ?? this.IconEl,
-            changes.childrens ?? this.childrens,
-            changes.isItem ?? this.isItem,
-            changes.lineNbr ?? this.lineNbr,
-            changes.width ?? this.width
-        )
     }
 }

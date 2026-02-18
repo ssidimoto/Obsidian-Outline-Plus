@@ -152,6 +152,7 @@ export class TreeFileViewModel{
 
         prevHeading.data.width = lines.length - prevHeading.data.lineNbr
         action(prevHeading)
+        console.log(this.tree.toString())
     }
 
     /** Generate a monotonically increasing node id. */
@@ -243,15 +244,9 @@ export class TreeFileViewModel{
     
     }
     DocDiffRange(doc: string, newDocLines: number){
-        console.log("prev total lines: " + this.totalLines)
-        console.log("new total lines: " + newDocLines)
         let offset = newDocLines - this.totalLines
         const oldDoc = this.getPrevDocHeadings()
         const newDoc = this.ParseNewDoc(doc, offset)
-        console.log("old doc headings:")
-        console.log(oldDoc)
-        console.log("new doc headings:")
-        console.log(newDoc)
 
         let oldDocMap = new Map()
         let newDocMap = new Map()
@@ -270,7 +265,7 @@ export class TreeFileViewModel{
                         this.getId()
                     )
                     this.nodeArr[id] = newNode
-                    this.tree.addNode(newNode, offset)
+                    this.tree.addNode(newNode)
                     this.change.next(new TreeChange(TreeAction.add, newNode))
                     console.log("added node: " + newNode.data.toString())
                 }
@@ -280,7 +275,7 @@ export class TreeFileViewModel{
         for(let i = 0; i < oldDoc.length; i++){
             if(newDocMap.get(oldDoc[i]!.heading.toString()) == undefined){
                 let headingNode = this.nodeArr[oldDoc[i]!.id]
-                this.tree.removeNode(headingNode!, offset)
+                this.tree.removeNode(headingNode!)
                 this.change.next(new TreeChange(TreeAction.delete, headingNode!.id))
                 console.log("deleted node: " + headingNode?.data.toString())
             }

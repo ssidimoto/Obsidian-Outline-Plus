@@ -1,5 +1,8 @@
 import { Itemhierarchy } from "datatypes/ItemHierarchy"
+import { write } from "fs";
 import { off } from "process";
+import { first } from "rxjs";
+import { writeLog } from "utils/uilts";
 
 export class HeadingNode<T extends Itemhierarchy> {
     childrens: HeadingNode<T>[] = []
@@ -31,7 +34,7 @@ export class HeadingNode<T extends Itemhierarchy> {
             changes.id ?? this.id
         )
     }
-    addNode(node: HeadingNode<T>, depth: number, offset: number = 0){
+    addNode(node: HeadingNode<T>, depth: number){
         if (node.depth === depth) {
             this.insertSibling(node);
         }
@@ -46,7 +49,6 @@ export class HeadingNode<T extends Itemhierarchy> {
                 this.insertAfterLast(node);
             }
         }
-        node.shiftLines(offset)
     }
 
     private insertSibling(node: HeadingNode<T>) {
@@ -55,16 +57,42 @@ export class HeadingNode<T extends Itemhierarchy> {
             if (node.depth === child.depth && node.data.lineNbr < child.data.lineNbr) {
                 this.childrens.splice(i, 0, node);
                 node.parent = this;
+
+                const prev = this.childrens[i - 1]!;
+                if(prev) {
+                    node.stealSiblingNodes(prev)
+                }
                 return;
             }
         }
+        const prev = this.childrens.at(-1)
         this.childrens.push(node);
         node.parent = this;
+        if(prev) {
+            node.stealSiblingNodes(prev)
+        }
     }
 
     private attachChild(node: HeadingNode<T>) {
         this.childrens.push(node);
         node.parent = this;
+    }
+
+    private stealSiblingNodes(prev: HeadingNode<T>) {
+        let nodeToAdd: HeadingNode<T>[] = []
+        let apply = (prevChild: HeadingNode<T>) => {
+            if(this.data.lineNbr < prevChild.data.lineNbr){
+                nodeToAdd.push(prevChild)
+                return
+            }
+        }
+        prev.inorderTraversal(apply, {begin: prev.data.lineNbr, end: Number.POSITIVE_INFINITY})
+        nodeToAdd.reverse().forEach((prevChild) => {
+            console.log("node to add: " + prevChild.toString())
+            prevChild.childrens = []
+            prevChild.parent.childrens = this.parent.childrens.filter((child) => !child.equals(prevChild))
+            this.addNode(prevChild, this.depth + 1)
+        })
     }
 
     private tryInsertAmongChildren(node: HeadingNode<T>): boolean {
@@ -99,35 +127,15 @@ export class HeadingNode<T extends Itemhierarchy> {
         }
     }
 
-    shiftLines(offset: number){
-        console.log("shifting")
-        this.childrens.forEach((child) => {
-            if(child.data.lineNbr > this.data.lineNbr){
-                child.shift(offset)
-            }
-        })
-
-        this.parent.childrens.forEach((child) => {
-            if(child.data.lineNbr > this.data.lineNbr && child.id !== this.id){
-                child.shift(offset)
-            }
-        })
-    }
-    shift(offset: number){
-        this.data.lineNbr += offset
-        console.log(`Node ${this.data.toString()} shifted by ${offset} lines to line ${this.data.lineNbr}`)
-        this.childrens.forEach((child) => {
-            child.shift(offset)
-        })
-    }
-
     remove(){
+        this.parent.childrens = this.parent.childrens.filter((child) => !child.equals(this))
+
         this.childrens.forEach((child) => {
             child.parent = this.parent
+            this.parent.tryInsertAmongChildren(child)
+            console.log(child.toString())
         })
         this.childrens = [];
-        this.parent.childrens = this.parent.childrens.filter((child) => !child.equals(this))
-        this.shiftLines(-this.data.width)
     }
 
     inorderTraversal(apply: (node: HeadingNode<T>) => void, range: {begin: number, end: number}){
@@ -137,6 +145,25 @@ export class HeadingNode<T extends Itemhierarchy> {
             child.inorderTraversal(apply, range)
         })
     }
+
+    findClosestNode(lineNbr: number): HeadingNode<T> {
+        for (let i = 1; i < this.childrens.length; i++) {
+            const child = this.childrens[i]!;
+            if (lineNbr < child.data.lineNbr) {
+                return this.childrens[i-1]!.findClosestNode(lineNbr)
+            }else if(lineNbr === child.data.lineNbr) {
+                return child
+            }
+        }
+        if(this.childrens.length > 0){
+            return this.childrens.at(-1)!.findClosestNode(lineNbr)
+        }else return this
+    }
+
+    toString(): string {
+        //print heading node depth and id then print its data
+        return `node : [depth: ${this.depth}, id: ${this.id}] ||-> ${this.data.toString()}`
+    }
 }
 
 export class HeadingsTree<T extends Itemhierarchy> {
@@ -144,25 +171,51 @@ export class HeadingsTree<T extends Itemhierarchy> {
     constructor(root: HeadingNode<T>){
         this.root = root
     }
-    addNode(node: HeadingNode<T>, offset: number = 0){
-        this.root.addNode(node, 1, offset)
-        console.log(this)
+    addNode(node: HeadingNode<T>){
+        this.root.addNode(node, 1,)
+    }
+
+    findClosestNode(lineNbr: number): HeadingNode<T> | undefined{
+        for (let i = 0; i < this.root.childrens.length; i++) {
+            const child = this.root.childrens[i]!;
+            if (lineNbr < child.data.lineNbr) {
+                let node = this.root.childrens[i-1]!.findClosestNode(lineNbr)
+                if(node) return node
+                else return child
+            }
+            else if(lineNbr === child.data.lineNbr) {
+                return child
+            }
+        }
+        if(this.root.childrens.length > 0){
+            return this.root.childrens.at(-1)!.findClosestNode(lineNbr)
+        }else return undefined
     }
 
     inorderTraversal(apply: (node: HeadingNode<T>) => void, range: {begin: number, end: number}) {
-        this.root.childrens.forEach((child) => {
-            child.inorderTraversal(apply, range)
-        })
+        this.root.inorderTraversal(apply, range)
     }
 
-    // findNode(node: {depth: number; index: number[]}, curr_depth: number){
-    //     this.root.findNode(node, 0)
-    // }
+    shiftLines(offset: number, begin: number){
+        let apply = (node: HeadingNode<T>) => {
+            node.data.lineNbr += offset
+        }
 
-    removeNode(node: HeadingNode<T>, offset: number = 0){
-        node.shiftLines(offset)
-        node.remove()
-        console.log(this)
+        let range = {begin: begin, end: Number.POSITIVE_INFINITY}
+        this.root.inorderTraversal(apply, range)
     }
     
+    removeNode(node: HeadingNode<T>){
+        node.remove()
+    }
+
+    toString(): string {
+        let result = "";
+        //use inoder traversal and apply add tab for depth
+        const apply = (node: HeadingNode<T>) => {
+            result += `${"   ".repeat(node.depth)}- ${node.toString()}\n`
+        }
+        this.inorderTraversal(apply, {begin: 0, end: Number.POSITIVE_INFINITY})
+        return result
+    }
 }
