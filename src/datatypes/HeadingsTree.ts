@@ -90,7 +90,7 @@ export class HeadingNode<T extends Itemhierarchy> {
         nodeToAdd.reverse().forEach((prevChild) => {
             console.log("node to add: " + prevChild.toString())
             prevChild.childrens = []
-            prevChild.parent.childrens = this.parent.childrens.filter((child) => !child.equals(prevChild))
+            prevChild.parent.childrens = prevChild.parent.childrens.filter((child) => !child.equals(prevChild))
             this.addNode(prevChild, this.depth + 1)
         })
     }
