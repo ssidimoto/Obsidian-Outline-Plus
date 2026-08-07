@@ -54,7 +54,19 @@ export class HtmlHeading extends Itemhierarchy{
         this.isItem = isItem
     }
 
-    equals(other: HtmlHeading): boolean {
+    override equals(other: HtmlHeading): boolean {
         return this.TitleEl.innerText === other.TitleEl.innerText && this.lineNbr === other.lineNbr && this.width === other.width
+    }
+
+    override copy(changes: Partial<this>): this {
+        return new HtmlHeading(
+            changes.FolderEl ?? this.FolderEl,
+            changes.TitleEl ?? this.TitleEl,
+            changes.IconEl ?? this.IconEl,
+            changes.childrens ?? this.childrens,
+            changes.isItem ?? this.isItem,
+            changes.lineNbr ?? this.lineNbr,
+            changes.width ?? this.width
+        ) as this;
     }
 }

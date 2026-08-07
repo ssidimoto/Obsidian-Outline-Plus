@@ -7,8 +7,8 @@ import { TreeFileUi } from 'views/UI/TreeFileUI';
 export const VIEW_TYPE_FILE_TREE = 'file-tree-view';
 
 export class FileTreeView extends ItemView {
-  vm: TreeFileViewModel
-  ui: TreeFileUi
+  vm!: TreeFileViewModel
+  ui!: TreeFileUi
   plugin: ExamplePlugin
 
   constructor(leaf: WorkspaceLeaf, plugin: ExamplePlugin) {

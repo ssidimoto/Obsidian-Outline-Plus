@@ -4,7 +4,7 @@ import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
 
 export default class FileTreeViewPlugin extends Plugin {
 
-  vm: TreeFileViewModel
+  vm!: TreeFileViewModel
   
   async onload() {
     this.registerView(

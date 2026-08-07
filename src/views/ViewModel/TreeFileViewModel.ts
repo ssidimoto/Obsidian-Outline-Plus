@@ -1,286 +1,226 @@
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import FileTreeViewPlugin from "main";
-import {EditorPosition} from "obsidian";
-import { BehaviorSubject, Head } from 'rxjs'
-import { Action } from "rxjs/internal/scheduler/Action";
-import { EditorView } from "@codemirror/view"
+import { EditorPosition, MarkdownView, TFile } from "obsidian";
+import { BehaviorSubject } from 'rxjs';
+import { Editor } from 'obsidian';
+import { EditorView } from '@codemirror/view'
 
+export const maxHeadingDepth = 6;
 
-export const maxHeadingDepth = 6
-const topLinePadding = 8
-const LATEX_REGEX = /\$(.+?)\$/g;
-const HEADING_REGEX = /^#{1,6} /
-
-export type TreeLatestChange = {
-  action: TreeAction
-  heading: HeadingNode<Heading>
+export enum TreeAction {
+  add,
+  delete,
+  destroy,
+  nothing,
+  scrolled
 }
 
-export enum TreeAction{
-    add,
-    delete,
-    destroy,
-    nothing
-}
-
-export class TreeChange{
-    action: TreeAction
-    node: HeadingNode<Heading>|null|number
-    constructor(action: TreeAction, node: HeadingNode<Heading>|null|number = null){
-        this.action = action
-        this.node = node
-    }
+export class TreeChange {
+  action: TreeAction;
+  node: HeadingNode<Heading> | null | number;
+  constructor(action: TreeAction, node: HeadingNode<Heading> | null | number = null) {
+    this.action = action;
+    this.node = node;
+  }
 }
 
 /**
- * View model that builds and manages a heading tree for the active file,
- * emitting changes to observers.
+ * View model that builds and manages a heading tree for the active file
+ * using Obsidian's MetadataCache, emitting changes to observers.
  */
-export class TreeFileViewModel{
-    plugin: FileTreeViewPlugin
-    tree: HeadingsTree<Heading>
-    id: number = 1
-    fileName: string
-    private change = new BehaviorSubject<TreeChange|null>(null)
-    readonly change$ = this.change.asObservable()
-    highlight: number = 0
-    nodeArr: HeadingNode<Heading>[] = []
-    totalLines: number = 0
+export class TreeFileViewModel {
+  plugin: FileTreeViewPlugin;
+  tree!: HeadingsTree<Heading>;
+  id: number = 1;
+  fileName: string | null = null;
+  private change = new BehaviorSubject<TreeChange | null>(null);
+  readonly change$ = this.change.asObservable();
+  highlight: number = 0;
+  nodeArr: HeadingNode<Heading>[] = [];
 
-    currentSelection: {begin :number, end: number}
-    prevSelection: {begin :number, end: number}
+  hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
 
+  constructor(plugin: FileTreeViewPlugin) {
+    this.plugin = plugin;
+    this.init();
+  }
 
-    constructor(plugin: FileTreeViewPlugin){
-        this.plugin = plugin
-        this.init()
-        
-    }
+  /** Initialize metadata cache listeners and root tree. */
+  init() {
+    const rootHeading = new Heading("Tree File Structure", -1, 0);
+    const root = new HeadingNode(rootHeading, 0, 0);
+    this.tree = new HeadingsTree(root);
 
-    /** Initialize listeners and root tree. */
-    init(){
-        const rootHeading = new Heading("Tree File Structure", -1, 0);
-        const root = new HeadingNode(rootHeading, 0, 0);
-        this.tree = new HeadingsTree(root);
-        this.plugin.registerEvent(
-            this.plugin.app.workspace.on('editor-change', editor => {
-                let content = editor.getDoc().getValue()
-
-                let doc = (editor as any).cm.viewState.state.doc
-                let selection = (editor as any).cm.viewState.state.selection.main
-                let beginLine = doc.lineAt(selection.head).number - 1
-                let endLine = doc.lineAt(selection.anchor).number - 1
-                this.prevSelection = this.currentSelection
-                this.currentSelection = {begin: Math.min(beginLine, endLine), end: Math.max(beginLine, endLine)}
-
-                this.DocDiffRange(content, editor.lineCount())
-            })
-        )
-
-        this.plugin.registerEditorExtension(
-            EditorView.updateListener.of(update => {
-                if(update.selectionSet) {
-                   let range = update.state.selection.main
-                   let beginLine = update.state.doc.lineAt(range!.head).number - 1
-                   let endLine = update.state.doc.lineAt(range!.anchor).number - 1
-                   this.prevSelection = this.currentSelection
-                    this.currentSelection = {begin: Math.min(beginLine, endLine), end: Math.max(beginLine, endLine)}
-                    // console.log(this.currentSelection)
-                    // console.log(this.prevSelection)
-                    // console.log("----")
-                }
-            })
-        )
-
-        this.plugin.registerEvent(
-           this.plugin.app.workspace.on('active-leaf-change', async () => {
-                const file = this.plugin.app.workspace.getActiveFile();
-                if(file && !this.fileName || file && this.fileName != file.basename) {
-                    const content = await this.plugin.app.vault.read(file)
-                    this.buildHeadingTree(content, (lines: number) => {
-                        this.totalLines = lines
-                        this.tree.root.childrens = []
-                        this.nodeArr = []
-                        this.id = 0
-                        this.change.next(new TreeChange(TreeAction.destroy))
-                    },
-                    (node: HeadingNode<Heading>) =>{
-                        this.nodeArr[node.id] = node
-                        this.tree.addNode(node)
-                        this.change.next(new TreeChange(TreeAction.add, node))
-                    })
-                    this.fileName = file.basename
-                }
-            })
-        )
-    }
-
-    /** Parse a markdown document and rebuild the headings tree.
-     * @param doc Markdown content for the active file.
-     */
-    buildHeadingTree(doc: string, init: (lines: number) => void,  action: (node: HeadingNode<Heading>) => void): void {
-        const lines = doc.split('\n');
-        init(lines.length)
-        if(!lines) return
-
-        let i = 0;
-        while (i < lines.length && !lines[i]!.match(HEADING_REGEX)) {
-            i++;
+    // 1. Écouter le changement de fichier actif
+    this.plugin.registerEvent(
+      this.plugin.app.workspace.on('active-leaf-change', () => {
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (activeFile && this.fileName !== activeFile.basename) {
+          this.handleFileSwitch(activeFile);
         }
-        if (i >= lines.length) return;
+      })
+    );
 
-        const firstMatch = lines[i]!.match(HEADING_REGEX)!
-        const firstDepth = firstMatch[0].trim().length;
-        const firstHeading = new Heading(lines[i]!.substring(firstDepth).trim(), i, 0);
-        let prevHeading: HeadingNode<Heading> = new HeadingNode(firstHeading, firstDepth, this.getId());
-        prevHeading.data.width = 0;
+    // 2. Écouter les mises à jour du cache de métadonnées (AST Markdown d'Obsidian)
+    this.plugin.registerEvent(
+      this.plugin.app.metadataCache.on('changed', (file, _, cache) => {
+        console.log(`Metadata cache changed for file: ${file.path}`);
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (activeFile && file.path === activeFile.path) {
+          this.syncTreeFromCache(file);
+        }
+      })
+    );
+  
 
-        for (let j = i + 1; j < lines.length; j++) {
-            const match = lines[j]!.match(HEADING_REGEX)
-            if (match) {
-                const depth = match[0].trim().length;
-                const heading = new Heading(lines[j]!.substring(depth).trim(), j, 0);
-                const node = new HeadingNode(heading, depth, this.getId());
+    this.plugin.registerEditorExtension(
+        EditorView.domEventHandlers({
+            scroll: (event, cmView) => {
+            this.onEditorScroll(cmView);
+            }
+        })
+    );
+}
 
-                const width = j - prevHeading.data.lineNbr
-                prevHeading.data.width = width
-                action(prevHeading)
-                prevHeading = node
+  private onEditorScroll(editor : Editor | EditorView) {
+    const centerLine = this.getExactCenterLine(editor, true);
+    console.log(`Editor scrolled. Center line: ${centerLine}`);
+    this.change.next({
+        action: TreeAction.scrolled,
+        node: centerLine
+    });
+}
+
+  /** Réinitialise l'arbre lors du passage à un nouveau fichier */
+  private handleFileSwitch(file: TFile) {
+    this.fileName = file.basename;
+    this.tree.root.childrens = [];
+    this.nodeArr = [];
+    this.id = 0;
+
+    // Avertir les observateurs que l'ancien arbre est détruit
+    this.change.next(new TreeChange(TreeAction.destroy));
+
+    // Construire le nouvel arbre à partir du cache
+    this.syncTreeFromCache(file);
+  }
+
+  /**
+   * Synchronise et effectue le diff de l'arbre à partir du cache Obsidian
+   */
+    private syncTreeFromCache(file: TFile) {
+        const cache = this.plugin.app.metadataCache.getFileCache(file);
+        const cacheHeadings = cache?.headings || [];
+
+        // Formater les métadonnées Obsidian vers le type Heading
+        const newHeadingsData = cacheHeadings.map((h, index) => {
+        const lineNbr = h.position.start.line; // 0-indexed line number
+        const nextLineNbr = index < cacheHeadings.length - 1 
+            ? cacheHeadings[index + 1]!.position.start.line 
+            : lineNbr + 1;
+
+        const width = Math.max(0, nextLineNbr - lineNbr);
+        return {
+            text: h.heading,
+            level: h.level,
+            lineNbr: lineNbr,
+            width: width
+        };
+        });
+
+        // Extraction des nœuds existants (hors racine)
+        const oldNodes = this.nodeArr.filter((n): n is HeadingNode<Heading> => n !== undefined);
+
+        // Clef unique identifiant un nœud : "Ligne:Niveau:Texte"
+        const oldMap = new Map<string, HeadingNode<Heading>>();
+        oldNodes.forEach(node => {
+        oldMap.set(`${node.data.lineNbr}:${node.depth}:${node.data.headLine}`, node);
+        });
+
+        const newMap = new Map<string, typeof newHeadingsData[0]>();
+        newHeadingsData.forEach(item => {
+        newMap.set(`${item.lineNbr}:${item.level}:${item.text}`, item);
+        });
+
+        // 1. Suppression des nœuds absents du nouveau cache
+        for (const [key, oldNode] of oldMap.entries()) {
+        if (!newMap.has(key)) {
+            this.tree.removeNode(oldNode);
+            delete this.nodeArr[oldNode.id];
+            this.change.next(new TreeChange(TreeAction.delete, oldNode.id));
+            console.log("Deleted node:", oldNode.data.toString());
+        }
+        }
+
+        // 2. Ajout des nouveaux nœuds
+        for (const [key, newItem] of newMap.entries()) {
+            if (!oldMap.has(key)) {
+                const heading = new Heading(newItem.text, newItem.lineNbr, newItem.width);
+                const newNode = new HeadingNode<Heading>(heading, newItem.level, this.getId());
+
+                this.nodeArr[newNode.id] = newNode;
+                this.tree.addNode(newNode);
+                this.change.next(new TreeChange(TreeAction.add, newNode));
+                console.log("Added node:", newNode.data.toString());
             }
         }
+   }
 
-        prevHeading.data.width = lines.length - prevHeading.data.lineNbr
-        action(prevHeading)
-        console.log(this.tree.toString())
+  /** Génère un ID incrémental pour chaque nœud */
+  getId(): number {
+    return this.id++;
+  }
+
+  /** Défilement vers le titre sélectionné dans l'éditeur */
+  async OnHeadingClicked(id: number) {
+    const fileView = (this.plugin.app.workspace as any).getActiveFileView();
+    const node = this.nodeArr[id];
+    if (node === undefined) {
+      throw Error("Node does not exist");
     }
 
-    /** Generate a monotonically increasing node id. */
-    getId(): number{
-        return this.id++
+    let view = fileView.currentMode;
+    if (view.type === "preview") {
+      view.renderer.applyScroll(node.data.lineNbr, { center: true, highlight: true });
+    } else if (view.type === "source") {
+      const startPos: EditorPosition = { line: node.data.lineNbr, ch: 0 };
+      const endCh = view.editor.getLine(node.data.lineNbr).length;
+      const endPos: EditorPosition = { line: node.data.lineNbr, ch: endCh };
+
+      const ranges = [{ from: startPos, to: endPos }];
+
+      view.editor.scrollIntoView({ from: startPos, to: endPos }, true);
+      if (this.highlight > 0) {
+        view.editor.removeHighlights(undefined);
+      }
+      view.editor.addHighlights(ranges, "is-flashing");
+      this.highlight += 1;
+      setTimeout(() => {
+        if (this.highlight === 1) {
+          view.editor.removeHighlights(undefined);
+          this.highlight = 0;
+        } else {
+          this.highlight -= 1;
+        }
+      }, 3000);
+
+     this.change.next(new TreeChange(TreeAction.scrolled, node.data.lineNbr)); 
     }
+  }
 
-    /** Scroll to the selected heading in the active view and highlight it.
-     * @param id Heading node id to scroll to.
-     */
-    async OnHeadingClicked(id: number){
-        const fileView = (this.plugin.app.workspace as any).getActiveFileView();
-        const node = this.nodeArr[id]
-        if(node == undefined){
-            throw Error("this node does not exist")
-        }
+    getExactCenterLine(editor: Editor | EditorView, zeroBased: boolean = true): number {
+      const cmView = editor instanceof EditorView ? editor : (editor as any).cm as EditorView | undefined;
+      if (!cmView) return (editor as Editor).getCursor().line;
 
-        let view = fileView.currentMode
-        if(view.type == "preview"){
-            view.renderer.applyScroll(node?.data.lineNbr, {center: true, highlight: true})
-        }
-        else if(view.type == "source"){
-            const startPos: EditorPosition = { line: node.data.lineNbr, ch: 0 };
-            const endCh = view.editor.getLine(node.data.lineNbr).length;
-            const endPos: EditorPosition = { line: node.data.lineNbr, ch: endCh };
+        // Calculate pixel mid-point of the visible viewport container
+        const scroller = cmView.scrollDOM;
+        const midY = scroller.scrollTop + scroller.clientHeight / 2;
 
-            const ranges = [{ from: startPos, to: endPos }];
+        // Resolve the document position at that pixel offset
+        const pos = cmView.lineBlockAtHeight(midY).from;
+        const line1Based = cmView.state.doc.lineAt(pos).number;
 
-            view.editor.scrollIntoView({ from: startPos, to: endPos }, true);
-            if(this.highlight > 0){
-                view.editor.removeHighlights(undefined)
-            }
-            view.editor.addHighlights(ranges, "is-flashing")
-            this.highlight += 1;
-            setTimeout(() => {
-                if(this.highlight == 1){
-                    view.editor.removeHighlights(undefined)
-                    this.highlight = 0;
-                }else{
-                this.highlight -= 1;
-                }
-            }, 3000);
-        }
-    }
-
-    getPrevDocHeadings(): {heading: Heading, id: number}[]{
-        let headings: {heading: Heading, id: number}[] = []
-        let apply = (node: HeadingNode<Heading>) => {
-            let heading = node.data
-            headings.push({heading, id: node.id})
-            // console.log(heading)
-        }
-        this.tree.inorderTraversal(apply, this.prevSelection)
-        return headings
-    }
-
-    ParseNewDoc(doc: string, offset: number): {heading: Heading, depth: number}[]{
-        let headings: {heading: Heading, depth: number}[]  = []
-        const lines = doc.split('\n');
-        const changedLines = lines.slice(this.prevSelection.begin, this.prevSelection.end + offset + 1)
-        if(!lines) return []
-
-        let i = 0;
-        while (i < changedLines.length && !changedLines[i]!.match(HEADING_REGEX)) {
-            i++;
-        }
-        if (i >= changedLines.length) return [];
-
-        const firstMatch = changedLines[i]!.match(HEADING_REGEX)!
-        const firstDepth = firstMatch[0].trim().length;
-        let prevHeading: {heading: Heading, depth: number} = {heading: new Heading(changedLines[i]!.substring(firstDepth).trim(), i + this.prevSelection.begin, 0), depth: firstDepth};
-        prevHeading.heading.width = 0;
-        headings.push(prevHeading)
-
-        for (let j = i + 1; j < changedLines.length; j++) {
-            const match = changedLines[j]!.match(HEADING_REGEX)
-            if (match) {
-                const depth = match[0].trim().length;
-                const heading = new Heading(changedLines[j]!.substring(depth).trim(), j, 0);
-                const width = j - prevHeading.heading.lineNbr
-                prevHeading.heading.width = width
-                headings.push({heading, depth})
-                prevHeading = {heading, depth}
-            }
-        }
-
-        prevHeading.heading.width = changedLines.length - prevHeading.heading.lineNbr
-        return headings
-    
-    }
-    DocDiffRange(doc: string, newDocLines: number){
-        let offset = newDocLines - this.totalLines
-        const oldDoc = this.getPrevDocHeadings()
-        const newDoc = this.ParseNewDoc(doc, offset)
-
-        let oldDocMap = new Map()
-        let newDocMap = new Map()
-        for(let i = 0; i < oldDoc.length; i++){
-            oldDocMap.set(oldDoc[i]!.heading.toString(), 1)
-        }
-        for(let i = 0; i < newDoc.length; i++){
-            let newHeading = newDoc[i]
-            if(newHeading) {
-                newDocMap.set(newHeading.heading.toString(), 1)
-                if(oldDocMap.get(newHeading.heading.toString()) == undefined){
-                    let id = this.getId()
-                    let newNode = new HeadingNode<Heading>(
-                        newHeading.heading,
-                        newHeading.depth, 
-                        this.getId()
-                    )
-                    this.nodeArr[id] = newNode
-                    this.tree.addNode(newNode)
-                    this.change.next(new TreeChange(TreeAction.add, newNode))
-                    console.log("added node: " + newNode.data.toString())
-                }
-            }
-        }
-
-        for(let i = 0; i < oldDoc.length; i++){
-            if(newDocMap.get(oldDoc[i]!.heading.toString()) == undefined){
-                let headingNode = this.nodeArr[oldDoc[i]!.id]
-                this.tree.removeNode(headingNode!)
-                this.change.next(new TreeChange(TreeAction.delete, headingNode!.id))
-                console.log("deleted node: " + headingNode?.data.toString())
-            }
-        }
-        this.totalLines = newDocLines
-
+        return zeroBased ? line1Based - 1 : line1Based;
     }
 }
