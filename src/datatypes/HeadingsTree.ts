@@ -146,7 +146,6 @@ export class HeadingNode<T extends Itemhierarchy> {
         
         orphans.forEach((child) => {
             this.parent.addNode(child, this.parent.depth + 1); // safely routes it to the proper spot
-            console.log(child.toString());
         });
     }
 

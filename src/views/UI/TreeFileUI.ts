@@ -1,4 +1,5 @@
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
+import { renderMath, finishRenderMath } from "obsidian";
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { TreeFileViewModel, TreeAction } from "views/ViewModel/TreeFileViewModel";
 import { Subscription } from "rxjs";
@@ -12,24 +13,18 @@ export class TreeFileUi {
     hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
     private changeSubscription?: Subscription;
 
-    /** Create the UI for the headings tree.
-     * @param viewModel View model that provides tree updates.
-     * @param container Root element to render into.
-     */
     constructor(viewModel: TreeFileViewModel, container: HTMLElement) {
         this.viewModel = viewModel;
         this.container = container;
         this.init();
     }
 
-    /** Initialize root node and subscribe to model changes. */
     init() {
-        console.debug("TreeFileUi initialized");
-
-        const rootHeading = new Heading("Tree File Structure", 0, 0);
+        const rootHeading = new Heading("File Index", 0, 0);
         const rootHeadingNode = new HeadingNode(rootHeading, -1, 0);
 
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode);
+        rootHTMLHeadingNode.data.childrens.style = "border-inline-start: none;";
         this.container.appendChild(rootHTMLHeadingNode.data.FolderEl);
 
         this.tree = new HeadingsTree<HtmlHeading>(rootHTMLHeadingNode);
@@ -38,22 +33,16 @@ export class TreeFileUi {
         this.changeSubscription = this.viewModel.change$.subscribe((change) => {
             switch (change?.action) {
                 case TreeAction.add:
-                    if (change.node) {
-                        this.addNode(this.newNode(change.node as HeadingNode<Heading>));
-                    }
+                    if (change.node) this.addNode(this.newNode(change.node as HeadingNode<Heading>));
                     break;
                 case TreeAction.delete:
-                    if (change.node) {
-                        this.deleteNode(change.node as number);
-                    }
+                    if (change.node) this.deleteNode(change.node as number);
                     break;
                 case TreeAction.destroy:
                     this.destroyTree();
                     break;
                 case TreeAction.scrolled:
-                    if (change.node) {
-                        this.scrollToLine(change.node as number);
-                    }
+                    if (change.node !== undefined && change.node !== null) this.scrollToLine(change.node as number);
                     break;
                 default:
                     break;
@@ -62,41 +51,61 @@ export class TreeFileUi {
     }
 
     scrollToLine(lineNbr: number): void {
-        // Reset previously highlighted element
+        const closestNode = this.tree.findClosestNode(lineNbr);
+        if (!closestNode) return;
+        
+        // Optimisation : on ne refait rien si on est déjà sur le bon nœud
+        if (this.hooveredNode === closestNode) return; 
+
+        // 1. Reset previously highlighted element
         if (this.hooveredNode) {
             const previousEl = this.hooveredNode.data.IconEl.parentElement;
-
             if (previousEl) {
                 previousEl.style.backgroundColor = "";
-                previousEl.style.color = "";
                 previousEl.style.transform = "";
             }
         }
 
-        const closestNode = this.tree.findClosestNode(lineNbr);
-        if (!closestNode) {
-            return;
-        }
+        // 2. Déplier automatiquement tous les parents pour rendre le nœud visible
+        this.expandPathToNode(closestNode);
 
-        // Scroll into view
+        // 3. Auto-Collapse de l'ancienne branche si on est sorti de sa hiérarchie
+        if (
+            this.hooveredNode &&
+            !this.hooveredNode.data.FolderEl.contains(closestNode.data.FolderEl) &&
+            !closestNode.data.FolderEl.contains(this.hooveredNode.data.FolderEl)
+        ) {
+            let nodeToCollapse: HeadingNode<HtmlHeading> | undefined = this.hooveredNode;
+            
+            // Remonter dans l'arbre en toute sécurité jusqu'à atteindre un niveau de profondeur pertinent
+            while (nodeToCollapse && nodeToCollapse.parent && nodeToCollapse.depth > closestNode.depth) {
+                nodeToCollapse = nodeToCollapse.parent;
+            }
+
+            // Fermer le nœud sans crasher sur la racine
+            if (nodeToCollapse && nodeToCollapse.id !== this.tree.root.id) {
+                if (!nodeToCollapse.data.IconEl.classList.contains("is-collapsed")) {
+                    this.OnHeadingButtonClicked(nodeToCollapse.data);
+                }
+            }
+        }
+        // 4. Scroll into view
         closestNode.data.TitleEl.scrollIntoView({
             behavior: "smooth",
             block: "center",
         });
 
-        // Apply highlight
+        // 5. Apply highlight
         const element = closestNode.data.IconEl.parentElement;
         if (element) {
-            element.style.backgroundColor = "#4d4d4d";
+            element.style.backgroundColor = "var(--background-modifier-hover)"; // Utilise la couleur du thème Obsidian
             element.style.transform = "scale(1.05)";
+            element.style.transition = "transform 150ms ease, background-color 150ms ease";
         }
 
         this.hooveredNode = closestNode;
     }
 
-    /** Add a node to the UI tree.
-     * @param node HtmlHeading node to insert.
-     */
     addNode(node: HeadingNode<HtmlHeading>) {
         this.tree.addNode(node);
         this.nodeDict.set(node.id, node);
@@ -108,30 +117,21 @@ export class TreeFileUi {
         }
     }
 
-    /** Remove a node from the UI and tree model.
-     * @param nodeId ID of the node to remove.
-     */
     deleteNode(nodeId: number) {
         const node = this.nodeDict.get(nodeId);
         if (!node) return;
 
         const parentNode = node.parent;
-
-        // Remove DOM element
         node.data.FolderEl.remove();
-
-        // Update Tree Data Structure & Dictionary
         this.tree.removeNode(node);
         this.nodeDict.delete(nodeId);
 
-        // If parent has no remaining children, hide collapse icon
         if (parentNode && parentNode.childrens.length === 0) {
             parentNode.data.isItem = true;
             parentNode.data.IconEl.style.display = "none";
         }
     }
 
-    /** Reset and destroy all elements in the tree. */
     destroyTree() {
         this.tree.root.childrens = [];
         this.clearTreeHtml(this.tree.root.data);
@@ -139,15 +139,9 @@ export class TreeFileUi {
         this.nodeDict.set(this.tree.root.id, this.tree.root);
     }
 
-    /** Insert child heading DOM element maintaining sorted sibling position.
-     * @param parentNode Parent HeadingNode.
-     * @param childNode Child HeadingNode to insert.
-     */
     addHTMLinChild(parentNode: HeadingNode<HtmlHeading>, childNode: HeadingNode<HtmlHeading>) {
         const parentHtml = parentNode.data;
         const childHtml = childNode.data;
-
-        // Determine correct DOM placement based on node sibling index
         const siblings = parentNode.childrens;
         const index = siblings.indexOf(childNode);
 
@@ -159,18 +153,12 @@ export class TreeFileUi {
         }
     }
 
-    /** Remove all rendered child nodes from a heading.
-     * @param node The heading whose children should be cleared.
-     */
     clearTreeHtml(node: HtmlHeading) {
         while (node.childrens.firstChild) {
             node.childrens.removeChild(node.childrens.firstChild);
         }
     }
 
-    /** Create an HtmlHeading node for rendering.
-     * @param node Source heading data node.
-     */
     newNode(node: HeadingNode<Heading>): HeadingNode<HtmlHeading> {
         const folderEl = document.createElement("div");
         folderEl.className = "tree-item nav-folder";
@@ -178,10 +166,7 @@ export class TreeFileUi {
         const folderSelf = document.createElement("div");
         folderSelf.className = "tree-item-self nav-folder-title is-clickable mod-collapsible";
         folderSelf.setAttribute("draggable", "true");
-        folderSelf.setAttribute(
-            "style",
-            "margin-inline-start: 0px !important; padding-inline-start: 24px !important;"
-        );
+        folderSelf.setAttribute("style", "margin-inline-start: 0px !important; padding-inline-start: 24px !important;");
 
         const iconContainer = document.createElement("div");
         iconContainer.className = "tree-item-icon collapse-icon";
@@ -209,17 +194,14 @@ export class TreeFileUi {
         const titleEl = document.createElement("div");
         titleEl.className = "tree-item-inner nav-folder-title-content";
         titleEl.setAttribute("data-initialized", "true");
-        titleEl.textContent = node.data.headLine;
+        this.renderHeadingTitle(titleEl, node.data.headLine);
 
         const children = document.createElement("div");
         children.className = "tree-item-children nav-folder-children";
-        // if(node.depth > 1) {
-        //     this.animateCollapse
-        // }
 
         const spacer = document.createElement("div");
         spacer.setAttribute("style", "width: 460px; height: 0.1px; margin-bottom: 0px;");
-        children.appendChild(spacer);
+        children.appendChild(spacer); 
 
         folderSelf.appendChild(iconContainer);
         folderSelf.appendChild(titleEl);
@@ -235,6 +217,13 @@ export class TreeFileUi {
             node.data.lineNbr,
             (node.data as any).width ?? 0
         );
+        
+        // Collapse statique à l'initialisation (sans animations)
+        if (node.depth > 1) {
+            iconContainer.classList.add("is-collapsed");
+            children.remove();
+        }
+
         const headingNode = new HeadingNode<HtmlHeading>(htmlHeading, node.depth, node.id);
 
         iconContainer.addEventListener("click", (e) => {
@@ -245,14 +234,15 @@ export class TreeFileUi {
         folderEl.addEventListener("click", (e) => {
             e.stopPropagation();
             this.viewModel.OnHeadingClicked(headingNode.id);
+            if(headingNode.data.IconEl.classList.contains("is-collapsed")) {
+                this.OnHeadingButtonClicked(headingNode.data);
+            }
+
         });
 
         return headingNode;
     }
 
-    /** Toggle a heading node's expanded/collapsed state in the UI.
-     * @param node The heading UI node to toggle.
-     */
     OnHeadingButtonClicked(node: HtmlHeading) {
         const childrenEl = node.childrens as HTMLElement;
 
@@ -267,12 +257,12 @@ export class TreeFileUi {
     }
 
     private animateCollapse(childrenEl: HTMLElement) {
-        if (!childrenEl.isConnected) return;
         const startHeight = childrenEl.scrollHeight;
         childrenEl.style.overflow = "hidden";
         childrenEl.style.height = `${startHeight}px`;
         childrenEl.style.transition = "height 150ms ease";
-        void childrenEl.offsetHeight;
+        
+        void childrenEl.offsetHeight; // Force reflow
         childrenEl.style.height = "0px";
 
         const onEnd = (event: TransitionEvent) => {
@@ -284,6 +274,9 @@ export class TreeFileUi {
             childrenEl.style.transition = "";
         };
         childrenEl.addEventListener("transitionend", onEnd);
+        
+        // ATTENTION : J'ai supprimé ici le bloc "if(childrenEl.childElementCount <= 1)" 
+        // car il cassait l'animation en supprimant l'élément avant la fin de la transition.
     }
 
     private animateExpand(childrenEl: HTMLElement) {
@@ -291,7 +284,8 @@ export class TreeFileUi {
         childrenEl.style.overflow = "hidden";
         childrenEl.style.height = "0px";
         childrenEl.style.transition = "height 150ms ease";
-        void childrenEl.offsetHeight;
+        
+        void childrenEl.offsetHeight; // Force reflow
         childrenEl.style.height = `${targetHeight}px`;
 
         const onEnd = (event: TransitionEvent) => {
@@ -304,26 +298,66 @@ export class TreeFileUi {
         childrenEl.addEventListener("transitionend", onEnd);
     }
 
-    private recursiveCollapse(node: HeadingNode<HtmlHeading>) {
-        node.data.IconEl.classList.add("is-collapsed");
-        node.data.childrens.style.display = "none";
-        node.childrens.forEach((child) => {
-            this.recursiveCollapse(child);
-        });
+    /** 
+     * Remplacement de recursiveExpand :
+     * Ouvre les PARENTS du nœud ciblé pour qu'il devienne visible.
+     */
+    private expandPathToNode(node: HeadingNode<HtmlHeading>) {
+        let current: HeadingNode<HtmlHeading> | undefined = node.parent;
+        const nodesToExpand: HeadingNode<HtmlHeading>[] = [];
+
+        // Récupérer tous les parents actuellement fermés
+        while (current && current.id !== this.tree.root.id) {
+            if (current.data.IconEl.classList.contains("is-collapsed")) {
+                nodesToExpand.push(current);
+            }
+            current = current.parent;
+        }
+
+        // Les ouvrir de haut en bas (du plus grand parent au plus petit)
+        // C'est indispensable pour que le scrollHeight se calcule correctement dans animateExpand !
+        for (let i = nodesToExpand.length - 1; i >= 0; i--) {
+            this.OnHeadingButtonClicked(nodesToExpand[i]!.data);
+        }
     }
 
-    private recursiveExpand(node: HeadingNode<HtmlHeading>) {
-        node.data.IconEl.classList.remove("is-collapsed");
-        node.data.childrens.style.display = "block";
-        node.childrens.forEach((child) => {
-            this.recursiveExpand(child);
-        });
-    }
-
-    /** Clean up subscriptions when the UI is destroyed. */
     destroy() {
         this.changeSubscription?.unsubscribe();
     }
 
 
+/**
+ * Renders a heading string containing inline LaTeX $...$ into a container element.
+ */
+    private renderHeadingTitle(containerEl: HTMLElement, titleText: string): void {
+    containerEl.empty();
+    if (!titleText) return;
+
+    const mathRegex = /\$([^\$]+)\$/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = mathRegex.exec(titleText)) !== null) {
+        if (match.index > lastIndex) {
+            containerEl.appendText(titleText.slice(lastIndex, match.index));
+        }
+
+        const mathContent = match[1]!;
+        const mathEl = renderMath(mathContent, true);
+        
+        // Force inline rendering
+        mathEl.style.display = "inline-block";
+        mathEl.style.verticalAlign = "middle";
+        mathEl.style.margin = "0 2px";
+
+        containerEl.appendChild(mathEl);
+        lastIndex = mathRegex.lastIndex;
+    }
+
+    if (lastIndex < titleText.length) {
+        containerEl.appendText(titleText.slice(lastIndex));
+    }
+
+    finishRenderMath();
+}
 }

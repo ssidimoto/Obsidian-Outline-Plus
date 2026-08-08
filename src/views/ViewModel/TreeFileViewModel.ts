@@ -65,7 +65,6 @@ export class TreeFileViewModel {
     // 2. Écouter les mises à jour du cache de métadonnées (AST Markdown d'Obsidian)
     this.plugin.registerEvent(
       this.plugin.app.metadataCache.on('changed', (file, _, cache) => {
-        console.log(`Metadata cache changed for file: ${file.path}`);
         const activeFile = this.plugin.app.workspace.getActiveFile();
         if (activeFile && file.path === activeFile.path) {
           this.syncTreeFromCache(file);
@@ -85,7 +84,6 @@ export class TreeFileViewModel {
 
   private onEditorScroll(editor : Editor | EditorView) {
     const centerLine = this.getExactCenterLine(editor, true);
-    console.log(`Editor scrolled. Center line: ${centerLine}`);
     this.change.next({
         action: TreeAction.scrolled,
         node: centerLine
@@ -149,7 +147,6 @@ export class TreeFileViewModel {
             this.tree.removeNode(oldNode);
             delete this.nodeArr[oldNode.id];
             this.change.next(new TreeChange(TreeAction.delete, oldNode.id));
-            console.log("Deleted node:", oldNode.data.toString());
         }
         }
 
@@ -162,7 +159,6 @@ export class TreeFileViewModel {
                 this.nodeArr[newNode.id] = newNode;
                 this.tree.addNode(newNode);
                 this.change.next(new TreeChange(TreeAction.add, newNode));
-                console.log("Added node:", newNode.data.toString());
             }
         }
    }

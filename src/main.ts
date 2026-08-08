@@ -41,3 +41,7 @@ export default class FileTreeViewPlugin extends Plugin {
     }
   }
 }
+//options for dynamic collapse
+//option to collapse all or expand all
+//local storage
+//improve readability
