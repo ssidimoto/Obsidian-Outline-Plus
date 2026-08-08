@@ -42,6 +42,11 @@ export default class FileTreeViewPlugin extends Plugin {
   }
 }
 //options for dynamic collapse
+//option to keep tree always expended given certain depth value
 //option to collapse all or expand all
+//option for keeping minimal depth always uncollapsed
+//option for seeing which depth difference tree collapses
+//new class for parameters
 //local storage
-//improve readability
+//improve code structure
+//fix bug where subheading deleted when parent heading is deleted

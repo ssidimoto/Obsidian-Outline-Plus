@@ -66,7 +66,9 @@ export class TreeFileViewModel {
     this.plugin.registerEvent(
       this.plugin.app.metadataCache.on('changed', (file, _, cache) => {
         const activeFile = this.plugin.app.workspace.getActiveFile();
+        console.log("Metadata cache changed for file:", file.path);
         if (activeFile && file.path === activeFile.path) {
+          console.log("Active file changed, syncing tree from cache.");
           this.syncTreeFromCache(file);
         }
       })
@@ -109,6 +111,7 @@ export class TreeFileViewModel {
    */
     private syncTreeFromCache(file: TFile) {
         const cache = this.plugin.app.metadataCache.getFileCache(file);
+        console.log("Syncing tree for file:", file.path);
         const cacheHeadings = cache?.headings || [];
 
         // Formater les métadonnées Obsidian vers le type Heading
@@ -161,6 +164,7 @@ export class TreeFileViewModel {
                 this.change.next(new TreeChange(TreeAction.add, newNode));
             }
         }
+        console.log("Tree synchronized. Current nodes:");
    }
 
   /** Génère un ID incrémental pour chaque nœud */
