@@ -34,9 +34,10 @@ export class TreeFileUi {
             switch (change?.action) {
                 case TreeAction.add:
                     if (change.node) this.addNode(this.newNode(change.node as HeadingNode<Heading>));
+                    console.log(change.node);
                     break;
                 case TreeAction.delete:
-                    if (change.node) this.deleteNode(change.node as number);
+                    this.deleteNode(change.node as number);
                     break;
                 case TreeAction.destroy:
                     this.destroyTree();
@@ -115,18 +116,56 @@ export class TreeFileUi {
             node.parent.data.isItem = false;
             node.parent.data.IconEl.style.display = "block";
         }
+
+        //add all its child and remove them from current node parent
+        console.log("Added node:", node.data.TitleEl.textContent);
+        if(node.childrens.length > 0) {
+            node.childrens.forEach((child) => {
+                this.addHTMLinChild(node, child);
+            });
+            node.data.isItem = false;
+            node.data.IconEl.style.display = "block";
+        }
+
+        //if prev sibling no more child remove its icon
+        let prevSibling = node.parent?.childrens[node.parent.childrens.indexOf(node) - 1];
+        if (prevSibling && prevSibling.childrens.length === 0) {
+            prevSibling.data.isItem = true;
+            prevSibling.data.IconEl.style.display = "none";
+        }
+        console.log(node.parent);   
     }
 
     deleteNode(nodeId: number) {
         const node = this.nodeDict.get(nodeId);
         if (!node) return;
-
+        
         const parentNode = node.parent;
+        let childrens = node.childrens;
+        let index = parentNode!.childrens.indexOf(node);
         node.data.FolderEl.remove();
         this.tree.removeNode(node);
+        //add childrens to previous sibling or if not siblings ot parent as first elems
+        if (parentNode) {
+            const siblings = parentNode.childrens;
+            if (index > 0) {
+                const previousSibling = siblings[index - 1];
+                childrens.forEach((child) => {
+                    this.addHTMLinChild(previousSibling!, child);
+                    child.parent = previousSibling!;
+                });
+                previousSibling!.data.isItem = false;
+                previousSibling!.data.IconEl.style.display = "block";
+            } else {
+                childrens.forEach((child) => {
+                    this.addHTMLinChild(parentNode, child);
+                    child.parent = parentNode;
+                });
+            }
+        }    
         this.nodeDict.delete(nodeId);
 
-        if (parentNode && parentNode.childrens.length === 0) {
+        if (parentNode.childrens.length === 0) {
             parentNode.data.isItem = true;
             parentNode.data.IconEl.style.display = "none";
         }
@@ -144,12 +183,12 @@ export class TreeFileUi {
         const childHtml = childNode.data;
         const siblings = parentNode.childrens;
         const index = siblings.indexOf(childNode);
+        const prevSibling = siblings[index - 1];
 
-        if (index >= 0 && index < siblings.length - 1) {
-            const nextSibling = siblings[index + 1]!;
-            parentHtml.childrens.insertBefore(childHtml.FolderEl, nextSibling.data.FolderEl);
+        if (prevSibling) {
+            parentHtml.childrens.insertAfter(childHtml.FolderEl, prevSibling.data.FolderEl);
         } else {
-            parentHtml.childrens.appendChild(childHtml.FolderEl);
+            parentHtml.childrens.prepend(childHtml.FolderEl);
         }
     }
 

@@ -17,7 +17,6 @@ export class HeadingNode<T extends Itemhierarchy> {
         return this.data.equals(other.data) && this.depth === other.depth;
     }
 
-    // copy object with changes given in argument
     copy(changes: Partial<HeadingNode<T>>, dataChanges?: Partial<T>): HeadingNode<T> {
         const newData = dataChanges
             ? this.data.copy(dataChanges)
@@ -30,122 +29,84 @@ export class HeadingNode<T extends Itemhierarchy> {
         );
     }
 
-    addNode(node: HeadingNode<T>, depth: number) {
-        if (node.depth === depth) {
-            this.insertSibling(node);
-        } else if (node.depth > depth) {
-            if (this.childrens.length === 0) {
-                this.attachChild(node);
-            } else if (!this.tryInsertAmongChildren(node)) {
-                this.insertAfterLast(node);
-            }
+    addNode(node: HeadingNode<T>) {
+        // 1. Trouver l'index d'insertion basé sur le numéro de ligne (lineNbr)
+        let insertIndex = 0;
+        while (
+            insertIndex < this.childrens.length &&
+            this.childrens[insertIndex]!.data.lineNbr < node.data.lineNbr
+        ) {
+            insertIndex++;
         }
-    }
 
-    private insertSibling(node: HeadingNode<T>) {
-        for (let i = 0; i < this.childrens.length; i++) {
-            const child = this.childrens[i]!;
-            if (node.depth === child.depth && node.data.lineNbr < child.data.lineNbr) {
-                this.childrens.splice(i, 0, node);
-                node.parent = this;
-
-                const prev = i > 0 ? this.childrens[i - 1] : undefined;
-                if (prev) {
-                    node.stealSiblingNodes(prev);
-                }
+        // 2. Si le titre précédent a une hiérarchie plus grande (depth plus petit),
+        // on redirige le nouveau nœud pour qu'il soit inséré à l'intérieur de celui-ci.
+        if (insertIndex > 0) {
+            const prevChild = this.childrens[insertIndex - 1]!;
+            if (node.depth > prevChild.depth) {
+                prevChild.addNode(node);
                 return;
             }
         }
-        const prev = this.childrens.at(-1);
-        this.childrens.push(node);
+
+        // 3. Insérer le nœud à cet endroit précis
+        this.childrens.splice(insertIndex, 0, node);
         node.parent = this;
-        if (prev) {
-            node.stealSiblingNodes(prev);
+
+        // 4. Extraire les sous-titres du "titre précédent" qui se trouvent physiquement 
+        // APRÈS la ligne de notre nouveau titre, et les donner à notre nouveau titre.
+        if (insertIndex > 0) {
+            const prevChild = this.childrens[insertIndex - 1]!;
+            this.transferNodesAfter(prevChild, node, node.data.lineNbr);
+        }
+
+        // 5. Adopter tous les frères (siblings) suivants qui ont une hiérarchie plus faible (depth plus grand)
+        let checkIndex = insertIndex + 1;
+        while (checkIndex < this.childrens.length) {
+            const nextSibling = this.childrens[checkIndex]!;
+            // Si le frère a une hiérarchie inférieure (ex: node est H1(1), nextSibling est H2(2))
+            if (nextSibling.depth > node.depth) {
+                // On l'enlève de la liste des frères
+                const adopted = this.childrens.splice(checkIndex, 1)[0]!;
+                // Et on demande au nouveau nœud de l'adopter
+                node.addNode(adopted);
+                // Note: On n'incrémente pas checkIndex car le tableau s'est décalé vers la gauche
+            } else {
+                // On s'arrête dès qu'on tombe sur un titre de même niveau ou de niveau supérieur
+                break; 
+            }
         }
     }
 
-    private attachChild(node: HeadingNode<T>) {
-        this.childrens.push(node);
-        node.parent = this;
-    }
-
-    private stealSiblingNodes(prev: HeadingNode<T>) {
-        // Safely extract and reattach subtrees that cross the lineNbr threshold
-        const moveAfter = (sourceNode: HeadingNode<T>, thresholdLine: number): HeadingNode<T>[] => {
-            const moved: HeadingNode<T>[] = [];
-            for (let i = sourceNode.childrens.length - 1; i >= 0; i--) {
-                const child = sourceNode.childrens[i]!;
-                if (child.data.lineNbr > thresholdLine) {
-                    sourceNode.childrens.splice(i, 1);
-                    moved.unshift(child); // Keep ordered correctly
-                } else {
-                    const deeplyMoved = moveAfter(child, thresholdLine);
-                    moved.unshift(...deeplyMoved);
-                }
+    /**
+     * Parcourt récursivement (et à l'envers pour sécuriser les suppressions) un nœud source.
+     * Transfère tous les nœuds se trouvant après 'thresholdLine' vers le nœud 'target'.
+     */
+    private transferNodesAfter(source: HeadingNode<T>, target: HeadingNode<T>, thresholdLine: number) {
+        for (let i = source.childrens.length - 1; i >= 0; i--) {
+            const child = source.childrens[i]!;
+            if (child.data.lineNbr > thresholdLine) {
+                // Ce nœud (et tous ses enfants implicitement) est retiré de la source
+                const removed = source.childrens.splice(i, 1)[0]!;
+                // Et transféré à la cible
+                target.addNode(removed);
+            } else {
+                // Si l'enfant est avant la ligne, certains de SES propres enfants sont peut-être après.
+                this.transferNodesAfter(child, target, thresholdLine);
             }
-            return moved;
-        };
-
-        const nodesToMove = moveAfter(prev, this.data.lineNbr);
-        nodesToMove.forEach(node => {
-            this.addNode(node, this.depth + 1);
-        });
-    }
-
-    private tryInsertAmongChildren(node: HeadingNode<T>): boolean {
-        for (let i = 0; i < this.childrens.length; i++) {
-            const child = this.childrens[i]!;
-            
-            if (node.depth > child.depth && node.data.lineNbr < child.data.lineNbr) {
-                const prev = i > 0 ? this.childrens[i - 1] : undefined;
-                if (prev) {
-                    prev.addNode(node, child.depth + 1);
-                } else {
-                    this.childrens.splice(0, 0, node);
-                    node.parent = this;
-                }
-                return true;
-            }
-            
-            if (node.depth < child.depth && node.data.lineNbr < child.data.lineNbr) {
-                this.childrens.splice(i, 0, node); // FIX: splice at i, not i + 1
-                node.parent = this;
-                
-                // Adopt subsequent children that are now physically after this new node
-                while (i + 1 < this.childrens.length) {
-                    const nextChild = this.childrens[i + 1]!;
-                    if (nextChild.data.lineNbr > node.data.lineNbr) {
-                        this.childrens.splice(i + 1, 1);
-                        node.addNode(nextChild, node.depth + 1);
-                    } else {
-                        break;
-                    }
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private insertAfterLast(node: HeadingNode<T>) {
-        const last = this.childrens.at(-1)!;
-        if (node.depth > last.depth && node.data.lineNbr > last.data.lineNbr) {
-            last.addNode(node, last.depth + 1);
-        } else {
-            this.childrens.push(node);
-            node.parent = this;
         }
     }
 
     remove() {
-        if (!this.parent) return; // safeguard
+        if (!this.parent) return; // Sécurité
         this.parent.childrens = this.parent.childrens.filter((child) => !child.equals(this));
 
         const orphans = [...this.childrens];
         this.childrens = [];
         
+        // Les orphelins sont réinsérés en toute sécurité.
         orphans.forEach((child) => {
-            this.parent.addNode(child, this.parent.depth + 1); // safely routes it to the proper spot
+            this.parent.addNode(child); 
         });
     }
 
@@ -181,6 +142,7 @@ export class HeadingNode<T extends Itemhierarchy> {
     }
 }
 
+
 export class HeadingsTree<T extends Itemhierarchy> {
     root: HeadingNode<T>;
     
@@ -189,7 +151,7 @@ export class HeadingsTree<T extends Itemhierarchy> {
     }
     
     addNode(node: HeadingNode<T>) {
-        this.root.addNode(node, 1);
+        this.root.addNode(node);
     }
 
     findClosestNode(lineNbr: number): HeadingNode<T> | undefined {
@@ -197,7 +159,6 @@ export class HeadingsTree<T extends Itemhierarchy> {
         if (lineNbr < this.root.childrens[0]!.data.lineNbr) return this.root.childrens[0];
         
         const closest = this.root.findClosestNode(lineNbr);
-        // Ensure that a node physically before the first item safely yields the first child
         return closest === this.root ? this.root.childrens[0] : closest; 
     }
 

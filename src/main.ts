@@ -50,3 +50,4 @@ export default class FileTreeViewPlugin extends Plugin {
 //local storage
 //improve code structure
 //fix bug where subheading deleted when parent heading is deleted
+//fix latex compilation error
