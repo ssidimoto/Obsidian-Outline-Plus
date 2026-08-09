@@ -1,65 +1,103 @@
 import { HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { finishRenderMath, renderMath } from "obsidian";
-import { ParametersData } from "../ViewModel/ParametersViewModel";
+import {DEFAULT_SETTINGS} from "global";
 
 export function animateCollapse(childrenEl: HTMLElement) {
-    childrenEl.style.overflow = "hidden";
-    childrenEl.style.height = `${childrenEl.scrollHeight}px`;
-    void childrenEl.offsetHeight; // Force reflow
-    childrenEl.style.transition = "height 150ms ease";
-    childrenEl.style.height = "0px";
+        const startHeight = childrenEl.scrollHeight;
+        childrenEl.style.overflow = "hidden";
+        childrenEl.style.height = `${startHeight}px`;
+        childrenEl.style.transition = "height 150ms ease";
+        
+        void childrenEl.offsetHeight; // Force reflow
+        childrenEl.style.height = "0px";
 
-    const onEnd = (e: TransitionEvent) => {
-        if (e.target !== childrenEl) return;
-        childrenEl.removeEventListener("transitionend", onEnd);
-        if (childrenEl.style.height === "0px") childrenEl.remove();
-        childrenEl.style.cssText = "";
-    };
-    childrenEl.addEventListener("transitionend", onEnd);
+        const onEnd = (event: TransitionEvent) => {
+            if (event.target !== childrenEl) return;
+            childrenEl.removeEventListener("transitionend", onEnd);
+            childrenEl.remove();
+            childrenEl.style.height = "";
+            childrenEl.style.overflow = "";
+            childrenEl.style.transition = "";
+        };
+        childrenEl.addEventListener("transitionend", onEnd);
+        
+        // ATTENTION : J'ai supprimé ici le bloc "if(childrenEl.childElementCount <= 1)" 
+        // car il cassait l'animation en supprimant l'élément avant la fin de la transition.
 }
 
-export function animateExpand(childrenEl: HTMLElement) {
-    childrenEl.style.overflow = "hidden";
-    childrenEl.style.height = "auto";
-    const targetHeight = childrenEl.scrollHeight;
-    childrenEl.style.height = "0px";
-    childrenEl.style.transition = "height 150ms ease";
-    void childrenEl.offsetHeight; // Force reflow
-    childrenEl.style.height = `${targetHeight}px`;
+export function expandAllChildren(node: HeadingNode<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void = () => {}) {
+    const childrens = node.childrens;
+    childrens.forEach((child) => {
+        expandAllChildren(child, OnHeadingButtonClicked);
 
-    const onEnd = (e: TransitionEvent) => {
-        if (e.target !== childrenEl) return;
-        childrenEl.removeEventListener("transitionend", onEnd);
-        childrenEl.style.cssText = "";
-    };
-    childrenEl.addEventListener("transitionend", onEnd);
+        if (child.data.IconEl.classList.contains("is-collapsed")) {
+            OnHeadingButtonClicked(child.data);
+        }
+    });
 }
 
+/**
+ * Expands the full subtree rooted at `node` in a deterministic order.
+ * Parent is always opened before children so UI state and animations stay consistent.
+ */
 export function expandSubtree(node: HeadingNode<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void) {
     if (node.childrens.length === 0) return;
+
     if (node.data.IconEl.classList.contains("is-collapsed")) {
         OnHeadingButtonClicked(node.data);
     }
+
     for (const child of node.childrens) {
         expandSubtree(child, OnHeadingButtonClicked);
     }
 }
 
+/**
+ * Collapses the full subtree rooted at `node` in post-order.
+ * Children close first, then parent, to avoid transient UI inconsistencies.
+ */
 export function collapseSubtree(node: HeadingNode<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void) {
     if (node.childrens.length === 0) return;
+
     for (const child of node.childrens) {
         collapseSubtree(child, OnHeadingButtonClicked);
     }
+
     if (!node.data.IconEl.classList.contains("is-collapsed")) {
         OnHeadingButtonClicked(node.data);
     }
 }
 
+
+export function animateExpand(childrenEl: HTMLElement) {
+    const targetHeight = childrenEl.scrollHeight;
+    childrenEl.style.overflow = "hidden";
+    childrenEl.style.height = "0px";
+    childrenEl.style.transition = "height 150ms ease";
+    
+    void childrenEl.offsetHeight; // Force reflow
+    childrenEl.style.height = `${targetHeight}px`;
+
+    const onEnd = (event: TransitionEvent) => {
+        if (event.target !== childrenEl) return;
+        childrenEl.removeEventListener("transitionend", onEnd);
+        childrenEl.style.height = "";
+        childrenEl.style.overflow = "";
+        childrenEl.style.transition = "";
+    };
+    childrenEl.addEventListener("transitionend", onEnd);
+}
+
+/** 
+ * Remplacement de recursiveExpand :
+ * Ouvre les PARENTS du nœud ciblé pour qu'il devienne visible.
+ */
 export function expandPathToNode(node: HeadingNode<HtmlHeading>, tree: HeadingsTree<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void) {
     let current: HeadingNode<HtmlHeading> | undefined = node.parent;
     const nodesToExpand: HeadingNode<HtmlHeading>[] = [];
 
+    // Récupérer tous les parents actuellement fermés
     while (current && current.id !== tree.root.id) {
         if (current.data.IconEl.classList.contains("is-collapsed")) {
             nodesToExpand.push(current);
@@ -67,22 +105,20 @@ export function expandPathToNode(node: HeadingNode<HtmlHeading>, tree: HeadingsT
         current = current.parent;
     }
 
+    // Les ouvrir de haut en bas (du plus grand parent au plus petit)
+    // C'est indispensable pour que le scrollHeight se calcule correctement dans animateExpand !
     for (let i = nodesToExpand.length - 1; i >= 0; i--) {
         OnHeadingButtonClicked(nodesToExpand[i]!.data);
     }
 }
 
-export function collapsePathToNode(
-    node: HeadingNode<HtmlHeading>,
-    OnHeadingButtonClicked: (heading: HtmlHeading) => void,
-    params: ParametersData,
-    initdepth: number = 0
-) {
+//collapse node recursively from root to leaf with recursive function
+export function collapsePathToNode(node: HeadingNode<HtmlHeading>, tree: HeadingsTree<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void, initdepth: number = 0) {
     for (const child of node.childrens) {
-        collapsePathToNode(child, OnHeadingButtonClicked, params, initdepth);
+        collapsePathToNode(child, tree, OnHeadingButtonClicked);
     }
     if (!node.data.IconEl.classList.contains("is-collapsed")) {
-        if (node.depth > params.collapseDepth && Math.abs(node.depth - initdepth) > params.dynamicCollapseDepthDiff) {
+        if(node.depth > DEFAULT_SETTINGS.collapseDepth && Math.abs(node.depth - initdepth) > DEFAULT_SETTINGS.dynamicCollapseDepthDiff) { // don't collapse root node
             OnHeadingButtonClicked(node.data);
         }
     }
@@ -104,6 +140,7 @@ export function renderHeadingTitle(containerEl: HTMLElement, titleText: string):
         const mathContent = match[1]!;
         const mathEl = renderMath(mathContent, true);
         
+        // Force inline rendering
         mathEl.style.display = "inline-block";
         mathEl.style.verticalAlign = "middle";
         mathEl.style.margin = "0 2px";

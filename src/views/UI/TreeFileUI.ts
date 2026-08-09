@@ -5,6 +5,7 @@ import { TreeFileViewModel, TreeAction } from "views/ViewModel/TreeFileViewModel
 import { Subscription } from "rxjs";
 import { expandPathToNode, animateCollapse, animateExpand, collapsePathToNode, expandSubtree, collapseSubtree } from "./Animation";
 import { createContextMenuUI, createGearIcon } from "./ParametersUI";
+import { DEFAULT_SETTINGS } from "global";
 
 /** UI builder for the headings tree. */
 export class TreeFileUi {
@@ -28,11 +29,7 @@ export class TreeFileUi {
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode);
         rootHTMLHeadingNode.data.childrens.style = "border-inline-start: none;";
         this.container.appendChild(rootHTMLHeadingNode.data.FolderEl);
-        rootHTMLHeadingNode.data.IconEl.parentElement?.append(
-            createGearIcon(this.viewModel.parameters, (updatedData) => {
-                void this.viewModel.onParametersChange(updatedData);
-            })
-        );
+        rootHTMLHeadingNode.data.IconEl.parentElement?.append(createGearIcon(DEFAULT_SETTINGS));
         rootHTMLHeadingNode.data.IconEl.parentElement!.style.display = "flex";
         rootHTMLHeadingNode.data.IconEl.parentElement!.style.alignItems = "center";
         rootHTMLHeadingNode.data.IconEl.parentElement!.style.width = "100%";
@@ -62,7 +59,10 @@ export class TreeFileUi {
 
     scrollToLine(lineNbr: number): void {
         const closestNode = this.tree.findClosestNode(lineNbr);
-        if (!closestNode || this.hooveredNode === closestNode) return; 
+        if (!closestNode) return;
+        
+        // Optimisation : on ne refait rien si on est déjà sur le bon nœud
+        if (this.hooveredNode === closestNode) return; 
 
         // 1. Reset previously highlighted element
         if (this.hooveredNode) {
@@ -70,35 +70,37 @@ export class TreeFileUi {
             if (previousEl) {
                 previousEl.style.backgroundColor = "";
                 previousEl.style.transform = "";
-                previousEl.style.transition = "";
             }
         }
 
-        // 2. Expand parent branch
+        // 2. Déplier automatiquement tous les parents pour rendre le nœud visible
         expandPathToNode(closestNode, this.tree, (heading: HtmlHeading) => {
             this.OnHeadingButtonClicked(heading);
         });
 
-        // 3. Auto-Collapse old branch
+        // 3. Auto-Collapse de l'ancienne branche si on est sorti de sa hiérarchie
         if (
             this.hooveredNode &&
             !this.hooveredNode.childrens.contains(closestNode) &&
             !closestNode.childrens.contains(this.hooveredNode)
         ) {
             let nodeToCollapse: HeadingNode<HtmlHeading> | undefined = this.hooveredNode;
-            while (nodeToCollapse && nodeToCollapse.parent && nodeToCollapse.depth > closestNode.depth) {
+            
+            // Remonter dans l'arbre en toute sécurité jusqu'à atteindre un niveau de profondeur pertinent
+            while (nodeToCollapse && nodeToCollapse.parent && nodeToCollapse.depth > closestNode.depth               
+            ) {
                 nodeToCollapse = nodeToCollapse.parent;
             }
 
+            // Fermer le nœud sans crasher sur la racine
             if (nodeToCollapse && nodeToCollapse.id !== this.tree.root.id) {
                 if (!nodeToCollapse.data.IconEl.classList.contains("is-collapsed")) {
-                    collapsePathToNode(nodeToCollapse, (heading: HtmlHeading) => {
+                    collapsePathToNode(nodeToCollapse, this.tree, (heading: HtmlHeading) => {
                         this.OnHeadingButtonClicked(heading);
-                    }, this.viewModel.parameters, this.hooveredNode?.depth);
+                    }, closestNode.depth);
                 }
             }
         }
-
         // 4. Scroll into view
         closestNode.data.TitleEl.scrollIntoView({
             behavior: "smooth",
@@ -108,7 +110,7 @@ export class TreeFileUi {
         // 5. Apply highlight
         const element = closestNode.data.IconEl.parentElement;
         if (element) {
-            element.style.backgroundColor = "var(--background-modifier-hover)";
+            element.style.backgroundColor = "var(--background-modifier-hover)"; // Utilise la couleur du thème Obsidian
             element.style.transform = "scale(1.05)";
             element.style.transition = "transform 150ms ease, background-color 150ms ease";
         }
@@ -126,7 +128,8 @@ export class TreeFileUi {
             node.parent.data.IconEl.style.display = "block";
         }
 
-        if (node.childrens.length > 0) {
+        //add all its child and remove them from current node parent
+        if(node.childrens.length > 0) {
             node.childrens.forEach((child) => {
                 this.addHTMLinChild(node, child);
             });
@@ -134,6 +137,7 @@ export class TreeFileUi {
             node.data.IconEl.style.display = "block";
         }
 
+        //if prev sibling no more child remove its icon
         let prevSibling = node.parent?.childrens[node.parent.childrens.indexOf(node) - 1];
         if (prevSibling && prevSibling.childrens.length === 0) {
             prevSibling.data.isItem = true;
@@ -150,7 +154,7 @@ export class TreeFileUi {
         let index = parentNode!.childrens.indexOf(node);
         node.data.FolderEl.remove();
         this.tree.removeNode(node);
-
+        //add childrens to previous sibling or if not siblings ot parent as first elems
         if (parentNode) {
             const siblings = parentNode.childrens;
             if (index > 0) {
@@ -262,6 +266,7 @@ export class TreeFileUi {
             (node.data as any).width ?? 0
         );
         
+        // Collapse statique à l'initialisation (sans animations)
         if (node.depth > 1) {
             iconContainer.classList.add("is-collapsed");
             children.remove();
@@ -277,7 +282,7 @@ export class TreeFileUi {
         folderEl.addEventListener("click", (e) => {
             e.stopPropagation();
             this.viewModel.OnHeadingClicked(headingNode.id);
-            if (headingNode.data.IconEl.classList.contains("is-collapsed")) {
+            if(headingNode.data.IconEl.classList.contains("is-collapsed")) {
                 this.OnHeadingButtonClicked(headingNode.data);
             }
         });
@@ -318,38 +323,45 @@ export class TreeFileUi {
         }
     }
 
+    
+
     destroy() {
         this.changeSubscription?.unsubscribe();
     }
 
+
+/**
+ * Renders a heading string containing inline LaTeX $...$ into a container element.
+ */
     private renderHeadingTitle(containerEl: HTMLElement, titleText: string): void {
-        containerEl.empty();
-        if (!titleText) return;
+    containerEl.empty();
+    if (!titleText) return;
 
-        const mathRegex = /\$([^\$]+)\$/g;
-        let lastIndex = 0;
-        let match: RegExpExecArray | null;
+    const mathRegex = /\$([^\$]+)\$/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
 
-        while ((match = mathRegex.exec(titleText)) !== null) {
-            if (match.index > lastIndex) {
-                containerEl.appendText(titleText.slice(lastIndex, match.index));
-            }
-
-            const mathContent = match[1]!;
-            const mathEl = renderMath(mathContent, true);
-            
-            mathEl.style.display = "inline-block";
-            mathEl.style.verticalAlign = "middle";
-            mathEl.style.margin = "0 2px";
-
-            containerEl.appendChild(mathEl);
-            lastIndex = mathRegex.lastIndex;
+    while ((match = mathRegex.exec(titleText)) !== null) {
+        if (match.index > lastIndex) {
+            containerEl.appendText(titleText.slice(lastIndex, match.index));
         }
 
-        if (lastIndex < titleText.length) {
-            containerEl.appendText(titleText.slice(lastIndex));
-        }
+        const mathContent = match[1]!;
+        const mathEl = renderMath(mathContent, true);
+        
+        // Force inline rendering
+        mathEl.style.display = "inline-block";
+        mathEl.style.verticalAlign = "middle";
+        mathEl.style.margin = "0 2px";
 
-        finishRenderMath();
+        containerEl.appendChild(mathEl);
+        lastIndex = mathRegex.lastIndex;
     }
+
+    if (lastIndex < titleText.length) {
+        containerEl.appendText(titleText.slice(lastIndex));
+    }
+
+    finishRenderMath();
+}
 }

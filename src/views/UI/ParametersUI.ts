@@ -70,10 +70,7 @@ export function createContextMenuUI(
 
 // --- Helper Functions ---
 
-export function createGearIcon(
-    paramsData: ParametersData = DEFAULT_SETTINGS,
-    onChange: (updatedData: ParametersData) => void = () => {}
-): HTMLElement {
+export function createGearIcon(paramsData: ParametersData = DEFAULT_SETTINGS, onChange: () => void = () => {}): HTMLElement {
     // Rely on global CSS for button styling
     const buttonEl = document.createElement("button");
     buttonEl.className = "clickable-icon graph-controls-button";
@@ -152,7 +149,7 @@ export function createGearIcon(
 }
 
 
-function buildParametersMenu(params: ParametersData, onChange: (updatedData: ParametersData) => void): HTMLElement {
+function buildParametersMenu(params: ParametersData, onChange: () => void): HTMLElement {
     const menuEl = document.createElement("div");
     menuEl.className = "menu compact-parameters-menu";
 
@@ -232,26 +229,10 @@ function buildParametersMenu(params: ParametersData, onChange: (updatedData: Par
                 border: 1px solid var(--background-modifier-border);
                 border-radius: 4px;
             `;
-            input.min = "0";
-            input.step = "1";
-
-            const syncValidity = () => {
-                const parsed = Number.parseFloat(input.value);
-                const isNegative = !Number.isNaN(parsed) && parsed < 0;
-
-                input.style.borderColor = isNegative ? "var(--text-error)" : "var(--background-modifier-border)";
-                input.style.boxShadow = isNegative ? "0 0 0 1px var(--text-error)" : "";
-
-                return !isNegative && !Number.isNaN(parsed);
-            };
-
             input.addEventListener("input", () => {
                 const num = Number.parseFloat(input.value);
-                const isValid = syncValidity();
-                if (isValid) onInput(num);
+                if (!Number.isNaN(num)) onInput(num);
             });
-
-            syncValidity();
         }
     };
 
@@ -261,7 +242,7 @@ function buildParametersMenu(params: ParametersData, onChange: (updatedData: Par
         "Index depth when resting", 
         "number", 
         params.collapseDepth, 
-        (v) => { params.collapseDepth = v; onChange(params); }
+        (v) => { params.collapseDepth = v; onChange(); }
     );
 
     createSetting(
@@ -269,7 +250,7 @@ function buildParametersMenu(params: ParametersData, onChange: (updatedData: Par
         "Minimal time between file index updates", 
         "number", 
         params.refreshRate, 
-        (v) => { params.refreshRate = v; onChange(params); }
+        (v) => { params.refreshRate = v; onChange(); }
     );
 
     createSetting(
@@ -277,7 +258,7 @@ function buildParametersMenu(params: ParametersData, onChange: (updatedData: Par
         "Tolerated index depth visible around current heading", 
         "number", 
         params.dynamicCollapseDepthDiff, 
-        (v) => { params.dynamicCollapseDepthDiff = v; onChange(params); }
+        (v) => { params.dynamicCollapseDepthDiff = v; onChange(); }
     );
 
     createSetting(
@@ -285,7 +266,7 @@ function buildParametersMenu(params: ParametersData, onChange: (updatedData: Par
         "No automatic update, only manual update with left click", 
         "checkbox", 
         params.manualUpdate, 
-        (v) => { params.manualUpdate = v; onChange(params); }
+        (v) => { params.manualUpdate = v; onChange(); }
     );
 
     return menuEl;
