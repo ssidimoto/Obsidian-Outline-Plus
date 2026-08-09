@@ -4,6 +4,8 @@ import FileTreeViewPlugin from "main";
 import { EditorPosition, MarkdownView, TFile, debounce, Editor } from "obsidian";
 import { BehaviorSubject } from 'rxjs';
 import { EditorView } from '@codemirror/view';
+import { ParametersData } from "./ParametersViewModel";
+import { DEFAULT_SETTINGS } from "global";
 
 export const maxHeadingDepth = 6;
 
@@ -33,6 +35,14 @@ export class TreeFileViewModel {
   tree!: HeadingsTree<Heading>;
   id: number = 1;
   fileName: string | null = null;
+  private lastKnownFile: TFile | null = null;
+  private lastParsedDoc: string = "";
+  parameters: ParametersData = new ParametersData(
+    DEFAULT_SETTINGS.collapseDepth,
+    DEFAULT_SETTINGS.refreshRate,
+    DEFAULT_SETTINGS.manualUpdate,
+    DEFAULT_SETTINGS.dynamicCollapseDepthDiff
+  );
   
   private change = new BehaviorSubject<TreeChange | null>(null);
   readonly change$ = this.change.asObservable();
@@ -49,6 +59,55 @@ export class TreeFileViewModel {
   constructor(plugin: FileTreeViewPlugin) {
     this.plugin = plugin;
     this.init();
+    void this.loadParameters();
+  }
+
+  async onParametersChange(updatedData: ParametersData) {
+    this.parameters.collapseDepth = Number.isFinite(updatedData.collapseDepth)
+      ? updatedData.collapseDepth
+      : this.parameters.collapseDepth;
+    this.parameters.refreshRate = Number.isFinite(updatedData.refreshRate)
+      ? updatedData.refreshRate
+      : this.parameters.refreshRate;
+    this.parameters.manualUpdate = !!updatedData.manualUpdate;
+    this.parameters.dynamicCollapseDepthDiff = Number.isFinite(updatedData.dynamicCollapseDepthDiff)
+      ? updatedData.dynamicCollapseDepthDiff
+      : this.parameters.dynamicCollapseDepthDiff;
+
+    await this.persistParameters();
+  }
+
+  private async loadParameters() {
+    const stored = await this.plugin.loadData();
+    const raw = stored?.parameters;
+    if (!raw || typeof raw !== "object") return;
+
+    this.parameters.collapseDepth = this.asNumber(raw.collapseDepth, this.parameters.collapseDepth);
+    this.parameters.refreshRate = this.asNumber(raw.refreshRate, this.parameters.refreshRate);
+    this.parameters.manualUpdate = this.asBoolean(raw.manualUpdate, this.parameters.manualUpdate);
+    this.parameters.dynamicCollapseDepthDiff = this.asNumber(
+      raw.dynamicCollapseDepthDiff,
+      this.parameters.dynamicCollapseDepthDiff
+    );
+  }
+
+  private async persistParameters() {
+    const data = (await this.plugin.loadData()) ?? {};
+    data.parameters = {
+      collapseDepth: this.parameters.collapseDepth,
+      refreshRate: this.parameters.refreshRate,
+      manualUpdate: this.parameters.manualUpdate,
+      dynamicCollapseDepthDiff: this.parameters.dynamicCollapseDepthDiff,
+    };
+    await this.plugin.saveData(data);
+  }
+
+  private asNumber(value: unknown, fallback: number): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  }
+
+  private asBoolean(value: unknown, fallback: boolean): boolean {
+    return typeof value === "boolean" ? value : fallback;
   }
 
   /** Initialize listeners and root tree. */
@@ -72,6 +131,7 @@ export class TreeFileViewModel {
       this.plugin.app.workspace.on('editor-change', (editor, info) => {
         const activeFile = this.plugin.app.workspace.getActiveFile();
         if (activeFile && info?.file && info.file.path === activeFile.path) {
+            this.lastKnownFile = info.file;
             this.debouncedEditorSync(editor);
         }
       })
@@ -95,12 +155,38 @@ export class TreeFileViewModel {
     });
   }
 
+  /** Rebuild tree from the currently active file, if any. */
+  refreshTree() {
+    const activeFile = this.plugin.app.workspace.getActiveFile();
+    const fileToRefresh = activeFile ?? this.lastKnownFile;
+
+    if (fileToRefresh) {
+      void this.handleFileSwitch(fileToRefresh);
+      return;
+    }
+
+    // Last-resort fallback for view-only refresh: rebuild from the last parsed snapshot.
+    if (this.lastParsedDoc.length > 0) {
+      this.tree.root.childrens = [];
+      this.nodeArr = [];
+      this.id = 1;
+      this.change.next(new TreeChange(TreeAction.destroy));
+      this.applyHeadingsData(this.parseHeadingsFromText(this.lastParsedDoc));
+    }
+  }
+
+  // Backward-compatible alias kept for existing call sites.
+  destroyTree() {
+    this.refreshTree();
+  }
+
   /** Reset tree on file switch */
   private async handleFileSwitch(file: TFile) {
+    this.lastKnownFile = file;
     this.fileName = file.basename;
     this.tree.root.childrens = [];
     this.nodeArr = [];
-    this.id = 0;
+    this.id = 1;
 
     this.change.next(new TreeChange(TreeAction.destroy));
 
@@ -109,12 +195,15 @@ export class TreeFileViewModel {
     if (activeView && activeView.file?.path === file.path) {
         this.syncTreeFromEditor(activeView.editor);
     } else {
-        //wait a bit a try again
-        setTimeout(() => {
+      // wait a bit and retry editor path, then fall back to cached file content
+      setTimeout(async () => {
             const activeViewRetry = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
             if (activeViewRetry && activeViewRetry.file?.path === file.path) {
                 this.syncTreeFromEditor(activeViewRetry.editor);
+          return;
             }
+
+        await this.syncTreeFromFile(file);
         }, 100);
     }
   }
@@ -129,6 +218,7 @@ export class TreeFileViewModel {
    */
   private syncTreeFromEditor(editor: Editor) {
     const doc = editor.getValue();
+    this.lastParsedDoc = doc;
     const cmView = (editor as any).cm as EditorView | undefined;
     const totalLines = editor.lineCount();
 
@@ -171,6 +261,43 @@ export class TreeFileViewModel {
       const next = newHeadingsData[i + 1];
       current.width = next ? next.lineNbr - current.lineNbr : totalLines - current.lineNbr;
     }
+
+    this.applyHeadingsData(newHeadingsData);
+  }
+
+  private async syncTreeFromFile(file: TFile) {
+    const doc = await this.plugin.app.vault.cachedRead(file);
+    this.lastParsedDoc = doc;
+    this.applyHeadingsData(this.parseHeadingsFromText(doc));
+  }
+
+  private parseHeadingsFromText(doc: string): { text: string; level: number; lineNbr: number; width: number }[] {
+    const lines = doc.split(/\r?\n/);
+    const headings: { text: string; level: number; lineNbr: number; width: number }[] = [];
+
+    for (let lineNbr = 0; lineNbr < lines.length; lineNbr++) {
+      const line = lines[lineNbr]!;
+      const match = line.match(/^(#{1,6})\s+(.*)$/);
+      if (!match) continue;
+
+      headings.push({
+        level: match[1]!.length,
+        text: match[2]!.trim(),
+        lineNbr,
+        width: 0,
+      });
+    }
+
+    for (let i = 0; i < headings.length; i++) {
+      const current = headings[i]!;
+      const next = headings[i + 1];
+      current.width = next ? next.lineNbr - current.lineNbr : lines.length - current.lineNbr;
+    }
+
+    return headings;
+  }
+
+  private applyHeadingsData(newHeadingsData: { text: string; level: number; lineNbr: number; width: number }[]) {
 
     // --- Diffing Logic (Runs in O(H) where H = number of headings) ---
     const oldNodes = this.nodeArr.filter((n): n is HeadingNode<Heading> => n !== undefined);

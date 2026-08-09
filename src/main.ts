@@ -1,6 +1,8 @@
-import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App} from 'obsidian';
+import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App, loadMathJax} from 'obsidian';
 import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
 import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
+import {ParametersData} from 'views/ViewModel/ParametersViewModel';
+
 
 export default class FileTreeViewPlugin extends Plugin {
 
@@ -15,6 +17,22 @@ export default class FileTreeViewPlugin extends Plugin {
     this.addRibbonIcon('list-tree', 'Activate view', () => {
       this.activateView();
     });
+
+    await loadMathJax();
+
+    const style = document.createElement('style');
+    style.textContent = `
+      .tooltip{
+        z-index: 10000;
+        background-color: rgba(0, 0, 0, 0.5);
+        text-align: left;
+        padding: 5px;
+      }
+      .menu-item:hover {
+        background-color: var(--background-modifier-hover);
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   async onunload() {
@@ -41,13 +59,11 @@ export default class FileTreeViewPlugin extends Plugin {
     }
   }
 }
-//options for dynamic collapse
-//option to keep tree always expended given certain depth value
+
 //option to collapse all or expand all
 //option for keeping minimal depth always uncollapsed
-//option for seeing which depth difference tree collapses
+//option for seeing which depth difference tree collapses for dynamic collapse
 //new class for parameters
 //local storage
 //improve code structure
-//fix bug where subheading deleted when parent heading is deleted
 //fix latex compilation error
