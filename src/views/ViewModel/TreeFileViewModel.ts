@@ -4,6 +4,7 @@ import FileTreeViewPlugin from "main";
 import { EditorPosition, MarkdownView, TFile, debounce, Editor } from "obsidian";
 import { BehaviorSubject } from 'rxjs';
 import { EditorView } from '@codemirror/view';
+import { SETTINGS } from "../../main";
 
 export const maxHeadingDepth = 6;
 
@@ -13,6 +14,13 @@ export enum TreeAction {
   destroy,
   nothing,
   scrolled
+}
+
+export enum ParamUpdateAction {
+  refreshRate,
+  collapseDepth,
+  manualUpdate,
+  dynamicCollapseDepthDiff
 }
 
 export class TreeChange {
@@ -73,9 +81,11 @@ export class TreeFileViewModel {
     this.plugin.registerEvent(
       this.plugin.app.workspace.on('editor-change', (editor, info) => {
         const activeFile = this.plugin.app.workspace.getActiveFile();
-        if (activeFile && info?.file && info.file.path === activeFile.path) {
+        if (activeFile && info?.file && info.file.path === activeFile.path && SETTINGS.manualUpdate === false) {
             this.lastKnownFile = info.file;
             this.debouncedEditorSync(editor);
+            setTimeout(() => {
+            }, SETTINGS.refreshRate); // Refresh rate is handled by the debounce function
         }
       })
     );
@@ -88,6 +98,19 @@ export class TreeFileViewModel {
             }
         })
     );
+
+    //load params from lcoalstorage and load them into defautl params
+    const savedSettings = localStorage.getItem('fileTreeSettings');
+    if (savedSettings) {
+        Object.assign(SETTINGS, JSON.parse(savedSettings));
+    }
+
+    //store current data parameters when app is closed
+    this.plugin.registerEvent(
+        this.plugin.app.workspace.on('quit', () => {
+            localStorage.setItem('fileTreeSettings', JSON.stringify(SETTINGS));
+        })
+    );
   }
 
   private onEditorScroll(editor: Editor | EditorView) {
@@ -96,6 +119,27 @@ export class TreeFileViewModel {
         action: TreeAction.scrolled,
         node: centerLine
     });
+  }
+
+  onChange(action: ParamUpdateAction, val: number) {
+    switch (action) {
+      case ParamUpdateAction.refreshRate:
+        SETTINGS.refreshRate = val;
+        break;
+      case ParamUpdateAction.collapseDepth:
+        SETTINGS.collapseDepth = val;
+        break;
+      case ParamUpdateAction.manualUpdate:
+        if(val) {
+          SETTINGS.manualUpdate = val !== 0;
+
+        }
+        SETTINGS.manualUpdate = val !== 0;
+        break;
+      case ParamUpdateAction.dynamicCollapseDepthDiff:
+        SETTINGS.dynamicCollapseDepthDiff = val;
+        break;
+    }
   }
 
   /** Rebuild tree from the currently active file, if any. */

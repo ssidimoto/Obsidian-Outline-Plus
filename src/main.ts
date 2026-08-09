@@ -1,8 +1,10 @@
 import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App, loadMathJax} from 'obsidian';
 import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
 import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
-import {ParametersData} from 'views/ViewModel/ParametersViewModel';
+import {ParametersData} from 'datatypes/Parameters';
 
+
+export var SETTINGS = new ParametersData(1, 0, false, 0);
 
 export default class FileTreeViewPlugin extends Plugin {
 
@@ -59,11 +61,9 @@ export default class FileTreeViewPlugin extends Plugin {
     }
   }
 }
-
-//option to collapse all or expand all
-//option for keeping minimal depth always uncollapsed
-//option for seeing which depth difference tree collapses for dynamic collapse
-//new class for parameters
-//local storage
-//improve code structure
-//fix latex compilation error
+//improve code readability and add comments
+//add error message when view not activated on non markdown file
+//close button on top of view
+//proper git to make
+//obsidian account and prerequisites for plugin publication, github on repo with readme
+//fix two buttons for plugin on sidebar

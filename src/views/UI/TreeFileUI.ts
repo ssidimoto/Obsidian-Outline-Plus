@@ -1,11 +1,11 @@
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { renderMath, finishRenderMath } from "obsidian";
 import { Heading, HtmlHeading } from "datatypes/Heading";
-import { TreeFileViewModel, TreeAction } from "views/ViewModel/TreeFileViewModel";
+import { TreeFileViewModel, TreeAction, ParamUpdateAction } from "views/ViewModel/TreeFileViewModel";
 import { Subscription } from "rxjs";
 import { expandPathToNode, animateCollapse, animateExpand, collapsePathToNode, expandSubtree, collapseSubtree } from "./Animation";
 import { createContextMenuUI, createGearIcon } from "./ParametersUI";
-import { DEFAULT_SETTINGS } from "global";
+import { SETTINGS } from "../../main";
 
 /** UI builder for the headings tree. */
 export class TreeFileUi {
@@ -29,7 +29,7 @@ export class TreeFileUi {
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode);
         rootHTMLHeadingNode.data.childrens.style = "border-inline-start: none;";
         this.container.appendChild(rootHTMLHeadingNode.data.FolderEl);
-        rootHTMLHeadingNode.data.IconEl.parentElement?.append(createGearIcon(DEFAULT_SETTINGS));
+        rootHTMLHeadingNode.data.IconEl.parentElement?.append(createGearIcon((action: ParamUpdateAction, val: number) => this.viewModel.onChange(action, val)));
         rootHTMLHeadingNode.data.IconEl.parentElement!.style.display = "flex";
         rootHTMLHeadingNode.data.IconEl.parentElement!.style.alignItems = "center";
         rootHTMLHeadingNode.data.IconEl.parentElement!.style.width = "100%";
@@ -81,8 +81,7 @@ export class TreeFileUi {
         // 3. Auto-Collapse de l'ancienne branche si on est sorti de sa hiérarchie
         if (
             this.hooveredNode &&
-            !this.hooveredNode.childrens.contains(closestNode) &&
-            !closestNode.childrens.contains(this.hooveredNode)
+            !this.hooveredNode.childrens.contains(closestNode) 
         ) {
             let nodeToCollapse: HeadingNode<HtmlHeading> | undefined = this.hooveredNode;
             
@@ -93,20 +92,23 @@ export class TreeFileUi {
             }
 
             // Fermer le nœud sans crasher sur la racine
-            if (nodeToCollapse && nodeToCollapse.id !== this.tree.root.id) {
-                if (!nodeToCollapse.data.IconEl.classList.contains("is-collapsed")) {
-                    collapsePathToNode(nodeToCollapse, this.tree, (heading: HtmlHeading) => {
-                        this.OnHeadingButtonClicked(heading);
-                    }, closestNode.depth);
-                }
+            if (!nodeToCollapse.data.IconEl.classList.contains("is-collapsed")) {
+                collapsePathToNode(nodeToCollapse, (heading: HtmlHeading) => {
+                    this.OnHeadingButtonClicked(heading);
+                }, closestNode.depth);
             }
+            
         }
         // 4. Scroll into view
         closestNode.data.TitleEl.scrollIntoView({
             behavior: "smooth",
             block: "center",
         });
-
+        if(closestNode.data.IconEl.classList.contains("is-collapsed")) {
+            expandPathToNode(closestNode, this.tree, (heading: HtmlHeading) => {
+                this.OnHeadingButtonClicked(heading);
+            });
+        }
         // 5. Apply highlight
         const element = closestNode.data.IconEl.parentElement;
         if (element) {
@@ -267,7 +269,7 @@ export class TreeFileUi {
         );
         
         // Collapse statique à l'initialisation (sans animations)
-        if (node.depth > 1) {
+        if (node.depth> SETTINGS.collapseDepth) {
             iconContainer.classList.add("is-collapsed");
             children.remove();
         }

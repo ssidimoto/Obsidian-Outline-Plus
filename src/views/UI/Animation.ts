@@ -1,7 +1,7 @@
 import { HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { finishRenderMath, renderMath } from "obsidian";
-import {DEFAULT_SETTINGS} from "global";
+import {SETTINGS} from "../../main";
 
 export function animateCollapse(childrenEl: HTMLElement) {
         const startHeight = childrenEl.scrollHeight;
@@ -22,8 +22,6 @@ export function animateCollapse(childrenEl: HTMLElement) {
         };
         childrenEl.addEventListener("transitionend", onEnd);
         
-        // ATTENTION : J'ai supprimé ici le bloc "if(childrenEl.childElementCount <= 1)" 
-        // car il cassait l'animation en supprimant l'élément avant la fin de la transition.
 }
 
 export function expandAllChildren(node: HeadingNode<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void = () => {}) {
@@ -96,9 +94,8 @@ export function animateExpand(childrenEl: HTMLElement) {
 export function expandPathToNode(node: HeadingNode<HtmlHeading>, tree: HeadingsTree<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void) {
     let current: HeadingNode<HtmlHeading> | undefined = node.parent;
     const nodesToExpand: HeadingNode<HtmlHeading>[] = [];
-
     // Récupérer tous les parents actuellement fermés
-    while (current && current.id !== tree.root.id) {
+    while (current) {
         if (current.data.IconEl.classList.contains("is-collapsed")) {
             nodesToExpand.push(current);
         }
@@ -113,15 +110,17 @@ export function expandPathToNode(node: HeadingNode<HtmlHeading>, tree: HeadingsT
 }
 
 //collapse node recursively from root to leaf with recursive function
-export function collapsePathToNode(node: HeadingNode<HtmlHeading>, tree: HeadingsTree<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void, initdepth: number = 0) {
+export function collapsePathToNode(node: HeadingNode<HtmlHeading>, OnHeadingButtonClicked: (heading: HtmlHeading) => void, initdepth: number = 0) {
+    
     for (const child of node.childrens) {
-        collapsePathToNode(child, tree, OnHeadingButtonClicked);
-    }
-    if (!node.data.IconEl.classList.contains("is-collapsed")) {
-        if(node.depth > DEFAULT_SETTINGS.collapseDepth && Math.abs(node.depth - initdepth) > DEFAULT_SETTINGS.dynamicCollapseDepthDiff) { // don't collapse root node
-            OnHeadingButtonClicked(node.data);
+        collapsePathToNode(child, OnHeadingButtonClicked, initdepth);
+        if (!child.parent!.data.IconEl.classList.contains("is-collapsed")) {
+            if(child.depth > SETTINGS.collapseDepth && (Math.abs(child.depth - initdepth) > SETTINGS.dynamicCollapseDepthDiff || SETTINGS.dynamicCollapseDepthDiff === 0)
+            && !child.parent!.data.IconEl.classList.contains("is-collapsed")) { // don't collapse root node
+                OnHeadingButtonClicked(child.parent!.data);
+            }
         }
-    }
+    } 
 }
 
 export function renderHeadingTitle(containerEl: HTMLElement, titleText: string): void {

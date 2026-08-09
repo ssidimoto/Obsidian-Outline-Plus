@@ -1,7 +1,8 @@
 import { setIcon } from "obsidian";
 import { setTooltip } from "obsidian"
-import { DEFAULT_SETTINGS } from "global";
-import { ParametersData } from "../ViewModel/ParametersViewModel"; // Adjust import path as needed
+import { SETTINGS } from "../../main";
+import { ParametersData } from "../../datatypes/Parameters"; // Adjust import path as needed
+import { ParamUpdateAction } from "views/ViewModel/TreeFileViewModel";
 
 let activeParametersMenu: HTMLElement | null = null;
 
@@ -70,12 +71,12 @@ export function createContextMenuUI(
 
 // --- Helper Functions ---
 
-export function createGearIcon(paramsData: ParametersData = DEFAULT_SETTINGS, onChange: () => void = () => {}): HTMLElement {
+export function createGearIcon(onChange: (action: ParamUpdateAction, val: number) => void): HTMLElement {
     // Rely on global CSS for button styling
     const buttonEl = document.createElement("button");
     buttonEl.className = "clickable-icon graph-controls-button";
     buttonEl.setAttribute("aria-label", "Settings");
-    setIcon(buttonEl, "settings");
+    setIcon(buttonEl, "wrench");
     buttonEl.style.display = "inline-flex";
     buttonEl.style.alignItems = "center";
     buttonEl.style.justifyContent = "center";
@@ -106,7 +107,7 @@ export function createGearIcon(paramsData: ParametersData = DEFAULT_SETTINGS, on
         if (menuEl) return handleClose();
 
         buttonEl.classList.add("mod-open");
-        menuEl = buildParametersMenu(paramsData, onChange);
+        menuEl = buildParametersMenu(SETTINGS, onChange);
         document.body.appendChild(menuEl);
 
         // Position menu with viewport bounds checking
@@ -149,7 +150,7 @@ export function createGearIcon(paramsData: ParametersData = DEFAULT_SETTINGS, on
 }
 
 
-function buildParametersMenu(params: ParametersData, onChange: () => void): HTMLElement {
+function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpdateAction, val: number) => void): HTMLElement {
     const menuEl = document.createElement("div");
     menuEl.className = "menu compact-parameters-menu";
 
@@ -175,7 +176,6 @@ function buildParametersMenu(params: ParametersData, onChange: () => void): HTML
         onInput: (v: any) => void
     ) => {
         const row = menuEl.createDiv({ cls: "setting-item" });
-        // Strip out default Obsidian setting paddings and borders for maximum compactness
         row.style.cssText = `
             border: none;
             height: 20px;
@@ -204,7 +204,7 @@ function buildParametersMenu(params: ParametersData, onChange: () => void): HTML
         const infoIcon = nameEl.createSpan({ text: "ⓘ" });
         infoIcon.style.cssText = "font-size: 0.75rem; color: var(--text-muted); opacity: 0.7;";
 
-        // Attach Obsidian native tooltip (falls back to native title attribute if needed)
+        // Attach Obsidian native tooltip
         setTooltip(nameEl, tooltipText, { placement: "right", delay: 300});        
 
         // Right side: Compact Control
@@ -229,9 +229,27 @@ function buildParametersMenu(params: ParametersData, onChange: () => void): HTML
                 border: 1px solid var(--background-modifier-border);
                 border-radius: 4px;
             `;
+
+            // Vérification initiale lors de l'affichage
+            if (typeof value === "number" && value < 0) {
+                input.style.borderColor = "var(--text-error)";
+                input.style.color = "var(--text-error)";
+            }
+
             input.addEventListener("input", () => {
                 const num = Number.parseFloat(input.value);
-                if (!Number.isNaN(num)) onInput(num);
+
+                // Si la valeur est négative ou non valide (NaN)
+                if (Number.isNaN(num) || num < 0) {
+                    input.style.borderColor = "var(--text-error)";
+                    input.style.color = "var(--text-error)";
+                    // N'appelle PAS onInput(num)
+                } else {
+                    // Rétablissement du style par défaut et déclenchement du callback
+                    input.style.borderColor = "var(--background-modifier-border)";
+                    input.style.color = "var(--text-normal)";
+                    onInput(num);
+                }
             });
         }
     };
@@ -239,34 +257,37 @@ function buildParametersMenu(params: ParametersData, onChange: () => void): HTML
     // Settings Definitions
     createSetting(
         "Collapse depth", 
-        "Index depth when resting", 
+        "any heading that has a depth greater than this value will be collapsed", 
         "number", 
         params.collapseDepth, 
-        (v) => { params.collapseDepth = v; onChange(); }
+        (v) => { onChange(ParamUpdateAction.collapseDepth, v); }
     );
 
     createSetting(
-        "Refresh rate", 
-        "Minimal time between file index updates", 
+        "Refresh rate (ms)", 
+        "It is the smaller interval between file index updates", 
         "number", 
         params.refreshRate, 
-        (v) => { params.refreshRate = v; onChange(); }
+        (v) => { onChange(ParamUpdateAction.refreshRate, v); }
     );
 
     createSetting(
         "Dynamic collapse diff", 
-        "Tolerated index depth visible around current heading", 
+        "If the depth difference between adjacent headings is greater than this value, the deeper heading will be collapsed", 
         "number", 
         params.dynamicCollapseDepthDiff, 
-        (v) => { params.dynamicCollapseDepthDiff = v; onChange(); }
+        (v) => { onChange(ParamUpdateAction.dynamicCollapseDepthDiff, v); }
     );
 
     createSetting(
         "Manual update", 
-        "No automatic update, only manual update with left click", 
+        "There is no automatic update, only manual ones with refresh button", 
         "checkbox", 
         params.manualUpdate, 
-        (v) => { params.manualUpdate = v; onChange(); }
+        (v) => { 
+            let val = v ? 1 : 0;
+            onChange(ParamUpdateAction.manualUpdate, val);
+        }
     );
 
     return menuEl;
