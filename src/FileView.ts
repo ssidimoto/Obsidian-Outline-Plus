@@ -21,7 +21,7 @@ export class FileTreeView extends ItemView {
   }
 
   getDisplayText() {
-    return 'File tree';
+    return 'File Index';
   }
 
   async onOpen() {

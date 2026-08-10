@@ -53,8 +53,8 @@ export class TreeFileViewModel {
   hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
 
   // Debounce the live editor parsing to maintain high typing performance (150ms delay)
-  private debouncedEditorSync = debounce((editor: Editor) => {
-    this.syncTreeFromEditor(editor);
+  private debouncedFileSync = debounce((file: TFile) => {
+    this.syncTreeFromFile(file);
   }, 0, true);
 
   constructor(plugin: FileTreeViewPlugin) {
@@ -67,17 +67,32 @@ export class TreeFileViewModel {
     const rootHeading = new Heading("Tree File Structure", -1, 0);
     const root = new HeadingNode(rootHeading, 0, 0);
     this.tree = new HeadingsTree(root);
+    //detect file closing even if not focus
 
+  //listen with layout change and print some deug info
+  this.plugin.registerEvent(
+    this.plugin.app.workspace.on('layout-change', () => {
+      let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      //if view null means file got deleted
+      if(view === null) {
+        console.log("File closed or deleted, destroying tree.");
+        this.destroyTree();
+        this.change.next(new TreeChange(TreeAction.Error));
+      }
+
+    })
+  );
     // 1. Listen for active file change
     this.plugin.registerEvent(
-      this.plugin.app.workspace.on('file-open', () => {
-        console.log("file openend")
-        const activeFile = this.plugin.app.workspace.getActiveFile();
-        console.log(`Active file changed to: ${activeFile?.basename ?? "none"}`);
-        console.log(activeFile);
-        if (activeFile) {
-          this.handleFileSwitch(activeFile);
-        } else if (!activeFile) {
+      this.plugin.app.workspace.on('file-open', (file: TFile | null) => {
+        //get active mark down file
+        let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+        console.log(`Active file changed to: ${file?.basename ?? "none"}`);
+
+        if (file && view && view.file && file.basename == view.file.basename) {
+          this.handleFile(file);
+        } else {
+          this.destroyTree();
           this.change.next(new TreeChange(TreeAction.Error));
         }
       })
@@ -89,7 +104,7 @@ export class TreeFileViewModel {
         const activeFile = this.plugin.app.workspace.getActiveFile();
         if (activeFile && info?.file && info.file.path === activeFile.path && SETTINGS.manualUpdate === false) {
             this.lastKnownFile = info.file;
-            this.debouncedEditorSync(editor);
+            this.debouncedFileSync(info.file);
             setTimeout(() => {
             }, SETTINGS.refreshRate); // Refresh rate is handled by the debounce function
         }
@@ -117,6 +132,11 @@ export class TreeFileViewModel {
             localStorage.setItem('fileTreeSettings', JSON.stringify(SETTINGS));
         })
     );
+
+    if(!this.lastKnownFile) {
+      console.log("No active file found during scroll event.");
+      this.change.next(new TreeChange(TreeAction.Error));
+    }
   }
 
   private onEditorScroll(editor: Editor | EditorView) {
@@ -124,7 +144,7 @@ export class TreeFileViewModel {
     this.change.next({
         action: TreeAction.scrolled,
         node: centerLine
-    });
+    }); 
   }
 
   onChange(action: ParamUpdateAction, val: number) {
@@ -149,31 +169,15 @@ export class TreeFileViewModel {
 
   /** Rebuild tree from the currently active file, if any. */
   refreshTree() {
-    const activeFile = this.plugin.app.workspace.getActiveFile();
-    const fileToRefresh = activeFile ?? this.lastKnownFile;
 
-    if (fileToRefresh) {
-      void this.handleFileSwitch(fileToRefresh);
+    if (this.lastKnownFile) {
+      void this.handleFile(this.lastKnownFile);
       return;
     }
-
-    // Last-resort fallback for view-only refresh: rebuild from the last parsed snapshot.
-    if (this.lastParsedDoc.length > 0) {
-      this.tree.root.childrens = [];
-      this.nodeArr = [];
-      this.id = 1;
-      this.change.next(new TreeChange(TreeAction.destroy));
-      this.applyHeadingsData(this.parseHeadingsFromText(this.lastParsedDoc));
-    }
-  }
-
-  // Backward-compatible alias kept for existing call sites.
-  destroyTree() {
-    this.refreshTree();
   }
 
   /** Reset tree on file switch */
-  private async handleFileSwitch(file: TFile) {
+  private async handleFile(file: TFile) {
     console.log(`Handling file switch to: ${file.basename}`);
     this.lastKnownFile = file;
     this.fileName = file.basename;
@@ -182,76 +186,15 @@ export class TreeFileViewModel {
     this.id = 1;
 
     console.log(`Switching to file: ${file.basename}`);
-    this.change.next(new TreeChange(TreeAction.destroy));
-    // Initialize with current file content
-    const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-    console.log(`Active view: ${activeView ? activeView.file?.basename : "none"}`);
-    if(!activeView) {
-      this.change.next(new TreeChange(TreeAction.Error));
-      return;
-    }
-    if (activeView.file?.path === file.path) {
-        this.syncTreeFromEditor(activeView.editor);
-    }
+    this.destroyTree();
+    this.syncTreeFromFile(file);
   }
 
-  /**
-   * REFACTORED CORE LOGIC: Replaces ParseNewDoc & DocDiffRange.
-   * Parses the text instantly and diffs it efficiently to avoid bugs with offset tracking.
-   */
-  /**
-   * Ultra-fast parser optimized for massive files (10k-50k+ lines).
-   * Operates directly on raw text using regex scanning and CodeMirror's line tree.
-   */
-  private syncTreeFromEditor(editor: Editor) {
-    const doc = editor.getValue();
-    console.log(doc);
-    this.lastParsedDoc = doc;
-    const cmView = (editor as any).cm as EditorView | undefined;
-    const totalLines = editor.lineCount();
-
-    // Global multiline regex to jump directly between headings in native C++
-    const HEADING_REGEX = /^#{1,6}\s+(.*)$/gm;
-
-    const newHeadingsData: { text: string; level: number; lineNbr: number; width: number }[] = [];
-    let match: RegExpExecArray | null;
-
-    while ((match = HEADING_REGEX.exec(doc)) !== null) {
-      const charOffset = match.index;
-      const fullMatch = match[0];
-      const headingText = match[1] ? match[1].trim() : "";
-
-      // Determine heading level by counting leading '#'
-      let level = 0;
-      while (fullMatch[level] === "#") {
-        level++;
-      }
-
-      // Resolve character offset to line number in O(log N) time
-      let lineNbr = 0;
-      if (cmView) {
-        lineNbr = cmView.state.doc.lineAt(charOffset).number - 1; // 0-indexed
-      } else {
-        lineNbr = editor.offsetToPos(charOffset).line;
-      }
-
-      newHeadingsData.push({
-        level,
-        text: headingText,
-        lineNbr,
-        width: 0,
-      });
-    }
-
-    // Calculate heading line spans (widths)
-    for (let i = 0; i < newHeadingsData.length; i++) {
-      const current = newHeadingsData[i]!;
-      const next = newHeadingsData[i + 1];
-      current.width = next ? next.lineNbr - current.lineNbr : totalLines - current.lineNbr;
-    }
-
-    this.applyHeadingsData(newHeadingsData);
-    console.log(`Tree synced from editor. Total headings: ${newHeadingsData.length}`);
+  destroyTree() {
+    this.tree.root.childrens = [];
+    this.nodeArr = [];
+    this.id = 1;
+    this.change.next(new TreeChange(TreeAction.destroy));
   }
 
   private async syncTreeFromFile(file: TFile) {
@@ -261,26 +204,48 @@ export class TreeFileViewModel {
   }
 
   private parseHeadingsFromText(doc: string): { text: string; level: number; lineNbr: number; width: number }[] {
-    const lines = doc.split(/\r?\n/);
     const headings: { text: string; level: number; lineNbr: number; width: number }[] = [];
+    const headingRegex = /^(#{1,6})[ \t]+(.*)$/gm;
 
-    for (let lineNbr = 0; lineNbr < lines.length; lineNbr++) {
-      const line = lines[lineNbr]!;
-      const match = line.match(/^(#{1,6})\s+(.*)$/);
-      if (!match) continue;
+    let currentLine = 0;
+    let lastMatchIndex = 0;
+    let match: RegExpExecArray | null;
+
+    // Single pass regex match across the entire document
+    while ((match = headingRegex.exec(doc)) !== null) {
+      const matchIndex = match.index;
+
+      // Count newlines between last match position and current match position
+      for (let i = lastMatchIndex; i < matchIndex; i++) {
+        if (doc.charCodeAt(i) === 10) { // 10 is ASCII for '\n'
+          currentLine++;
+        }
+      }
+      lastMatchIndex = matchIndex;
 
       headings.push({
         level: match[1]!.length,
         text: match[2]!.trim(),
-        lineNbr,
+        lineNbr: currentLine,
         width: 0,
       });
     }
 
+    if (headings.length === 0) return headings;
+
+    // Count remaining lines to compute the total document line count
+    for (let i = lastMatchIndex; i < doc.length; i++) {
+      if (doc.charCodeAt(i) === 10) {
+        currentLine++;
+      }
+    }
+    const totalLines = currentLine + 1;
+
+    // Calculate width (line span) for each heading
     for (let i = 0; i < headings.length; i++) {
       const current = headings[i]!;
       const next = headings[i + 1];
-      current.width = next ? next.lineNbr - current.lineNbr : lines.length - current.lineNbr;
+      current.width = next ? next.lineNbr - current.lineNbr : totalLines - current.lineNbr;
     }
 
     return headings;

@@ -15,9 +15,6 @@ export default class FileTreeViewPlugin extends Plugin {
       VIEW_TYPE_FILE_TREE,
       (leaf) => new FileTreeView(leaf, this)
     );
-    
-    this.addRibbonIcon('list-tree', 'Activate view', () => {
-    });
 
     await loadMathJax();
 
@@ -39,25 +36,6 @@ export default class FileTreeViewPlugin extends Plugin {
   async onunload() {
     const { workspace } = this.app;
     workspace.detachLeavesOfType(VIEW_TYPE_FILE_TREE);
-  }
-
-  async activateView() {
-    const { workspace } = this.app;
-
-    let leaf: WorkspaceLeaf | null = null;
-    const leaves = workspace.getLeavesOfType(VIEW_TYPE_FILE_TREE);
-
-    if (leaves.length > 0) {
-      leaf = leaves[0] ?? null;
-    } else {
-      leaf = workspace.getLeftLeaf(false);
-      if (leaf) {
-        await leaf.setViewState({ type: VIEW_TYPE_FILE_TREE, active: true });
-      }
-    }
-    if (leaf) {
-      workspace.revealLeaf(leaf);
-    }
   }
 }
 //improve code readability and add comments

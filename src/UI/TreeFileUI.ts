@@ -42,6 +42,7 @@ export class TreeFileUi {
                     if (change.node !== undefined && change.node !== null) this.scrollToLine(change.node as number);
                     break;
                 case TreeAction.Error:
+                    this.destroyTree();
                     this.error();
                 default:
                     break;
