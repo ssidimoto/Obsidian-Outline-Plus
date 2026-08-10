@@ -2,7 +2,7 @@ import {editorEditorField, ItemView, MarkdownView, WorkspaceLeaf } from 'obsidia
 
 import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
 import ExamplePlugin from 'main';
-import { TreeFileUi } from 'views/UI/TreeFileUI';
+import { TreeFileUi } from 'UI/TreeFileUI';
 
 export const VIEW_TYPE_FILE_TREE = 'file-tree-view';
 

@@ -5,7 +5,7 @@ import { TreeFileViewModel, TreeAction, ParamUpdateAction } from "views/ViewMode
 import { Subscription } from "rxjs";
 import { expandPathToNode, animateCollapse, animateExpand, collapsePathToNode, expandSubtree, collapseSubtree } from "./Animation";
 import { createContextMenuUI, createGearIcon } from "./ParametersUI";
-import { SETTINGS } from "../../main";
+import { SETTINGS } from "../main";
 
 /** UI builder for the headings tree. */
 export class TreeFileUi {
@@ -23,6 +23,33 @@ export class TreeFileUi {
     }
 
     init() {
+
+        this.createRootNode();
+        this.changeSubscription = this.viewModel.change$.subscribe((change) => {
+            switch (change?.action) {
+                case TreeAction.add:
+                    if (change.node) this.addNode(this.newNode(change.node as HeadingNode<Heading>));
+                    break;
+                case TreeAction.delete:
+                    this.deleteNode(change.node as number);
+                    break;
+                case TreeAction.destroy:
+                    this.removeError();
+                    this.destroyTree();
+
+                    break;
+                case TreeAction.scrolled:
+                    if (change.node !== undefined && change.node !== null) this.scrollToLine(change.node as number);
+                    break;
+                case TreeAction.Error:
+                    this.error();
+                default:
+                    break;
+            }
+        });
+    }
+
+    createRootNode() {
         const rootHeading = new Heading("File Index", 0, 0);
         const rootHeadingNode = new HeadingNode(rootHeading, -1, 0);
 
@@ -36,27 +63,34 @@ export class TreeFileUi {
         rootHTMLHeadingNode.data.TitleEl.style.flex = "1 1 auto";
         this.tree = new HeadingsTree<HtmlHeading>(rootHTMLHeadingNode);
         this.nodeDict.set(rootHTMLHeadingNode.id, rootHTMLHeadingNode);
-
-        this.changeSubscription = this.viewModel.change$.subscribe((change) => {
-            switch (change?.action) {
-                case TreeAction.add:
-                    if (change.node) this.addNode(this.newNode(change.node as HeadingNode<Heading>));
-                    break;
-                case TreeAction.delete:
-                    this.deleteNode(change.node as number);
-                    break;
-                case TreeAction.destroy:
-                    this.destroyTree();
-                    break;
-                case TreeAction.scrolled:
-                    if (change.node !== undefined && change.node !== null) this.scrollToLine(change.node as number);
-                    break;
-                default:
-                    break;
-            }
-        });
     }
 
+    error(){
+        let css = 
+        `position: absolute; top: 
+        50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; 
+        font-weight: bold; 
+        color: var(--text-normal);`
+
+        this.container.empty();
+        const wrapper = document.createElement("div");
+        wrapper.style.cssText = css;
+        const errorEl = document.createElement("div");
+        errorEl.textContent = "Error: No compatible Markdown view found."
+        wrapper.appendChild(errorEl);
+
+        wrapper.appendChild(document.createElement("br"));
+        const errorEl2 = document.createElement("div");
+        errorEl2.textContent = "Please open a Markdown file to use the File Tree view."
+        wrapper.appendChild(errorEl2);
+        this.container.appendChild(wrapper);
+    }
+
+    removeError() {
+        this.container.empty();
+        this.createRootNode();
+
+    }
     scrollToLine(lineNbr: number): void {
         const closestNode = this.tree.findClosestNode(lineNbr);
         if (!closestNode) return;
@@ -187,6 +221,7 @@ export class TreeFileUi {
         this.clearTreeHtml(this.tree.root.data);
         this.nodeDict.clear();
         this.nodeDict.set(this.tree.root.id, this.tree.root);
+
     }
 
     addHTMLinChild(parentNode: HeadingNode<HtmlHeading>, childNode: HeadingNode<HtmlHeading>) {

@@ -1,7 +1,7 @@
 import { HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import { finishRenderMath, renderMath } from "obsidian";
-import {SETTINGS} from "../../main";
+import {SETTINGS} from "../main";
 
 export function animateCollapse(childrenEl: HTMLElement) {
         const startHeight = childrenEl.scrollHeight;

@@ -1,5 +1,5 @@
 import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App, loadMathJax} from 'obsidian';
-import { FileTreeView, VIEW_TYPE_FILE_TREE } from './views/FileView';
+import { FileTreeView, VIEW_TYPE_FILE_TREE } from './FileView';
 import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
 import {ParametersData} from 'datatypes/Parameters';
 
@@ -15,9 +15,8 @@ export default class FileTreeViewPlugin extends Plugin {
       VIEW_TYPE_FILE_TREE,
       (leaf) => new FileTreeView(leaf, this)
     );
-
+    
     this.addRibbonIcon('list-tree', 'Activate view', () => {
-      this.activateView();
     });
 
     await loadMathJax();

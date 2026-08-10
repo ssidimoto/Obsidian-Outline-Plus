@@ -1,7 +1,7 @@
 import { setIcon } from "obsidian";
 import { setTooltip } from "obsidian"
-import { SETTINGS } from "../../main";
-import { ParametersData } from "../../datatypes/Parameters"; // Adjust import path as needed
+import { SETTINGS } from "../main";
+import { ParametersData } from "../datatypes/Parameters"; // Adjust import path as needed
 import { ParamUpdateAction } from "views/ViewModel/TreeFileViewModel";
 
 let activeParametersMenu: HTMLElement | null = null;

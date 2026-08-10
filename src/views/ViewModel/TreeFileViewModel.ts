@@ -13,7 +13,8 @@ export enum TreeAction {
   delete,
   destroy,
   nothing,
-  scrolled
+  scrolled,
+  Error,
 }
 
 export enum ParamUpdateAction {
@@ -69,10 +70,15 @@ export class TreeFileViewModel {
 
     // 1. Listen for active file change
     this.plugin.registerEvent(
-      this.plugin.app.workspace.on('active-leaf-change', () => {
+      this.plugin.app.workspace.on('file-open', () => {
+        console.log("file openend")
         const activeFile = this.plugin.app.workspace.getActiveFile();
-        if (activeFile && this.fileName !== activeFile.basename) {
+        console.log(`Active file changed to: ${activeFile?.basename ?? "none"}`);
+        console.log(activeFile);
+        if (activeFile) {
           this.handleFileSwitch(activeFile);
+        } else if (!activeFile) {
+          this.change.next(new TreeChange(TreeAction.Error));
         }
       })
     );
@@ -132,7 +138,6 @@ export class TreeFileViewModel {
       case ParamUpdateAction.manualUpdate:
         if(val) {
           SETTINGS.manualUpdate = val !== 0;
-
         }
         SETTINGS.manualUpdate = val !== 0;
         break;
@@ -169,29 +174,24 @@ export class TreeFileViewModel {
 
   /** Reset tree on file switch */
   private async handleFileSwitch(file: TFile) {
+    console.log(`Handling file switch to: ${file.basename}`);
     this.lastKnownFile = file;
     this.fileName = file.basename;
     this.tree.root.childrens = [];
     this.nodeArr = [];
     this.id = 1;
 
+    console.log(`Switching to file: ${file.basename}`);
     this.change.next(new TreeChange(TreeAction.destroy));
-
     // Initialize with current file content
     const activeView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-    if (activeView && activeView.file?.path === file.path) {
+    console.log(`Active view: ${activeView ? activeView.file?.basename : "none"}`);
+    if(!activeView) {
+      this.change.next(new TreeChange(TreeAction.Error));
+      return;
+    }
+    if (activeView.file?.path === file.path) {
         this.syncTreeFromEditor(activeView.editor);
-    } else {
-      // wait a bit and retry editor path, then fall back to cached file content
-      setTimeout(async () => {
-            const activeViewRetry = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-            if (activeViewRetry && activeViewRetry.file?.path === file.path) {
-                this.syncTreeFromEditor(activeViewRetry.editor);
-          return;
-            }
-
-        await this.syncTreeFromFile(file);
-        }, 100);
     }
   }
 
@@ -205,6 +205,7 @@ export class TreeFileViewModel {
    */
   private syncTreeFromEditor(editor: Editor) {
     const doc = editor.getValue();
+    console.log(doc);
     this.lastParsedDoc = doc;
     const cmView = (editor as any).cm as EditorView | undefined;
     const totalLines = editor.lineCount();
@@ -250,6 +251,7 @@ export class TreeFileViewModel {
     }
 
     this.applyHeadingsData(newHeadingsData);
+    console.log(`Tree synced from editor. Total headings: ${newHeadingsData.length}`);
   }
 
   private async syncTreeFromFile(file: TFile) {
