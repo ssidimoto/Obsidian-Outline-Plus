@@ -51,7 +51,7 @@ export class TreeFileUi {
     }
 
     createRootNode() {
-        const rootHeading = new Heading("File Index", 0, 0);
+        const rootHeading = new Heading("File Outline", 0, 0);
         const rootHeadingNode = new HeadingNode(rootHeading, -1, 0);
 
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode);
