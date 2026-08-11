@@ -23,7 +23,11 @@ export class FileTreeView extends ItemView {
   getDisplayText() {
     return 'File Index';
   }
-
+  
+  getIcon() {
+    return 'list-tree';
+  }
+  
   async onOpen() {
     const container = this.contentEl;
     this.vm = new TreeFileViewModel(this.plugin)

@@ -69,20 +69,23 @@ export class TreeFileUi {
     error(){
         let css = 
         `position: absolute; top: 
-        50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; 
-        font-weight: bold; 
-        color: var(--text-normal);`
+        50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; 
+        color: var(--text-normal); color: #909090;`
 
         this.container.empty();
         const wrapper = document.createElement("div");
         wrapper.style.cssText = css;
         const errorEl = document.createElement("div");
-        errorEl.textContent = "Error: No compatible Markdown view found."
+        //append child with text error : 
+        let error = document.createElement("div");
+        error.innerHTML = "Error :"
+        wrapper.appendChild(error);
+        wrapper.appendChild(document.createElement("r"));
+        errorEl.textContent = "No compatible file found."
         wrapper.appendChild(errorEl);
-
         wrapper.appendChild(document.createElement("br"));
         const errorEl2 = document.createElement("div");
-        errorEl2.textContent = "Please open a Markdown file to use the File Tree view."
+        errorEl2.textContent = "Please open a Markdown file to use the File Outline view."
         wrapper.appendChild(errorEl2);
         this.container.appendChild(wrapper);
     }

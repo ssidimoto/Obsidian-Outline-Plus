@@ -50,7 +50,7 @@ export function createContextMenuUI(
 
     addItem("chevrons-down-up", "Collapse", "action-expand", actions?.onCollapse);
     addItem("chevrons-up-down", "Expand", "action-collapse", actions?.onExpand);
-    addItem("pin", "Refresh", "action-refresh", actions?.refresh);
+    addItem("rotate-cw", "Refresh", "action-refresh", actions?.refresh);
 
     // Close on click outside
     const closeHandler = (e: MouseEvent) => {
@@ -205,7 +205,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
         infoIcon.style.cssText = "font-size: 0.75rem; color: var(--text-muted); opacity: 0.7;";
 
         // Attach Obsidian native tooltip
-        setTooltip(nameEl, tooltipText, { placement: "right", delay: 300});        
+        setTooltip(nameEl, tooltipText, { placement: "left", delay: 300});        
 
         // Right side: Compact Control
         const control = row.createDiv({ cls: "setting-item-control" });
@@ -223,7 +223,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
                 width: 44px;
                 height: 22px;
                 padding: 0 4px;
-                text-align: right;
+                text-align: right;f
                 font-size: 0.8rem;
                 background: var(--background-modifier-form-field);
                 border: 1px solid var(--background-modifier-border);

@@ -1,5 +1,5 @@
 import { MarkdownView, Plugin, renderResults, WorkspaceLeaf, App, loadMathJax} from 'obsidian';
-import { FileTreeView, VIEW_TYPE_FILE_TREE } from './FileView';
+import { FileTreeView, VIEW_TYPE_FILE_TREE } from './IndexView';
 import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
 import {ParametersData} from 'datatypes/Parameters';
 
@@ -11,13 +11,22 @@ export default class FileTreeViewPlugin extends Plugin {
   vm!: TreeFileViewModel
   
   async onload() {
+    console.log("dog shit 1")
     this.registerView(
       VIEW_TYPE_FILE_TREE,
       (leaf) => new FileTreeView(leaf, this)
     );
-
+    console.log("dog shit")
+    this.app.workspace.onLayoutReady(() => {
+      this.initView();
+    });
+    
     await loadMathJax();
-
+    //add ribon icon 
+    this.addRibbonIcon('list-tree', 'File Tree View', async () => {
+      this.initView();
+    });
+    
     const style = document.createElement('style');
     style.textContent = `
       .tooltip{
@@ -37,10 +46,28 @@ export default class FileTreeViewPlugin extends Plugin {
     const { workspace } = this.app;
     workspace.detachLeavesOfType(VIEW_TYPE_FILE_TREE);
   }
+
+  private async initView() {
+        const { workspace } = this.app;
+
+        // Check if Obsidian ALREADY restored your view leaf from workspace.json
+        const existingLeaves = workspace.getLeavesOfType(VIEW_TYPE_FILE_TREE);
+
+        if (existingLeaves.length > 0) {
+            // Leaf was restored successfully by Obsidian on reload!
+            console.log("Tree file view leaf restored successfully.");
+            return;
+        }
+
+        // Only create a new leaf if it wasn't restored (e.g., first run)
+        const leaf = workspace.getRightLeaf(false);
+        if (leaf) {
+            await leaf.setViewState({
+                type: VIEW_TYPE_FILE_TREE,
+                active: true,
+            });
+            workspace.revealLeaf(leaf);
+        }
+        //reveal leaf
+    }
 }
-//improve code readability and add comments
-//add error message when view not activated on non markdown file
-//close button on top of view
-//proper git to make
-//obsidian account and prerequisites for plugin publication, github on repo with readme
-//fix two buttons for plugin on sidebar
