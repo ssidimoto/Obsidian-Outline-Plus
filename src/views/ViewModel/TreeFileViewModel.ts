@@ -15,6 +15,7 @@ export enum TreeAction {
   nothing,
   scrolled,
   Error,
+  update
 }
 
 export enum ParamUpdateAction {
@@ -53,8 +54,8 @@ export class TreeFileViewModel {
   hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
 
   // Debounce the live editor parsing to maintain high typing performance (150ms delay)
-  private debouncedFileSync = debounce((file: TFile) => {
-    this.syncTreeFromFile(file);
+  private debouncedEditorSync = debounce((editor: Editor) => {
+    this.syncTreeFromEditor(editor);
   }, 0, true);
 
   constructor(plugin: FileTreeViewPlugin) {
@@ -104,7 +105,7 @@ export class TreeFileViewModel {
         const activeFile = this.plugin.app.workspace.getActiveFile();
         if (activeFile && info?.file && info.file.path === activeFile.path && SETTINGS.manualUpdate === false) {
             this.lastKnownFile = info.file;
-            this.debouncedFileSync(info.file);
+            this.debouncedEditorSync(editor);
             setTimeout(() => {
             }, SETTINGS.refreshRate); // Refresh rate is handled by the debounce function
         }
@@ -197,6 +198,47 @@ export class TreeFileViewModel {
     this.change.next(new TreeChange(TreeAction.destroy));
   }
 
+  
+  private syncTreeFromEditor(editor: Editor) {
+    const doc = editor.getValue();
+    this.lastParsedDoc = doc;
+    const cmView = (editor as any).cm as EditorView | undefined;
+    const totalLines = editor.lineCount();
+
+    const HEADING_REGEX = /^#{1,6}\s+(.*)$/gm;
+
+    const newHeadingsData: { text: string; level: number; lineNbr: number; width: number }[] = [];
+    let match: RegExpExecArray | null;
+
+    while ((match = HEADING_REGEX.exec(doc)) !== null) {
+      const charOffset = match.index;
+      const fullMatch = match[0];
+      const headingText = match[1] ? match[1].trim() : "";
+
+      let level = 0;
+      while (fullMatch[level] === "#") {
+        level++;
+      }
+
+      let lineNbr = 0;
+      if (cmView) {
+        lineNbr = cmView.state.doc.lineAt(charOffset).number - 1;
+      } else {
+        lineNbr = editor.offsetToPos(charOffset).line;
+      }
+
+      newHeadingsData.push({ level, text: headingText, lineNbr, width: 0 });
+    }
+
+    for (let i = 0; i < newHeadingsData.length; i++) {
+      const current = newHeadingsData[i]!;
+      const next = newHeadingsData[i + 1];
+      current.width = next ? next.lineNbr - current.lineNbr : totalLines - current.lineNbr;
+    }
+
+    this.applyHeadingsData(newHeadingsData);
+  }
+
   private async syncTreeFromFile(file: TFile) {
     const doc = await this.plugin.app.vault.cachedRead(file);
     this.lastParsedDoc = doc;
@@ -285,8 +327,11 @@ export class TreeFileViewModel {
         this.change.next(new TreeChange(TreeAction.delete, oldNode.id));
       } else {
         const newItem = newMap.get(key)!;
-        oldNode.data.lineNbr = newItem.lineNbr;
-        oldNode.data.width = newItem.width;
+        if (oldNode.data.lineNbr !== newItem.lineNbr || oldNode.data.width !== newItem.width) {
+            oldNode.data.lineNbr = newItem.lineNbr;
+            oldNode.data.width = newItem.width;
+            this.change.next(new TreeChange(TreeAction.update, oldNode));
+        }
       }
     }
 

@@ -41,6 +41,9 @@ export class TreeFileUi {
                 case TreeAction.scrolled:
                     if (change.node !== undefined && change.node !== null) this.scrollToLine(change.node as number);
                     break;
+                case TreeAction.update:
+                    this.updateNode(change.node as HeadingNode<Heading>);
+                    break;
                 case TreeAction.Error:
                     this.destroyTree();
                     this.error();
@@ -156,6 +159,15 @@ export class TreeFileUi {
         }
 
         this.hooveredNode = closestNode;
+    }
+
+
+    updateNode(node: HeadingNode<Heading>) {
+        const uiNode = this.nodeDict.get(node.id);
+        if (uiNode) {
+            uiNode.data.lineNbr = node.data.lineNbr;
+            uiNode.data.width = (node.data as any).width ?? 0;
+        }
     }
 
     addNode(node: HeadingNode<HtmlHeading>) {
