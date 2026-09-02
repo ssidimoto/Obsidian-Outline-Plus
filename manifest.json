@@ -2,8 +2,8 @@
 	"id": "file-outline-plus",
 	"name": "File Outline Plus",
 	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
+	"minAppVersion": "1.8.7",
+	"description": "A document outline sidebar with collapsible headings, active-position tracking and inline LaTeX rendering.",
 	"author": "Anas Sidi Mohamed",
 	"isDesktopOnly": false
 }

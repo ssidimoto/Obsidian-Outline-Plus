@@ -10,4 +10,9 @@ export abstract class Itemhierarchy{
     abstract equals(other: Itemhierarchy): boolean;
 
     abstract copy(changes: Partial<this>): this
+
+    /** Default stringification, kept identical to the inherited `Object` behaviour. */
+    toString(): string {
+        return Object.prototype.toString.call(this);
+    }
 }

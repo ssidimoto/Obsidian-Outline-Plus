@@ -1,4 +1,4 @@
-import {editorEditorField, ItemView, MarkdownView, WorkspaceLeaf } from 'obsidian';
+import { ItemView, WorkspaceLeaf } from 'obsidian';
 
 import { TreeFileViewModel } from 'views/ViewModel/TreeFileViewModel';
 import ExamplePlugin from 'main';
@@ -21,7 +21,7 @@ export class FileTreeView extends ItemView {
   }
 
   getDisplayText() {
-    return 'File Index';
+    return 'File index';
   }
   
   getIcon() {

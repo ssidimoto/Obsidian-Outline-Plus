@@ -4,8 +4,6 @@ import { SETTINGS } from "../main";
 import { ParametersData } from "../datatypes/Parameters"; // Adjust import path as needed
 import { ParamUpdateAction } from "views/ViewModel/TreeFileViewModel";
 
-let activeParametersMenu: HTMLElement | null = null;
-
 /**
  * UI 2: Returns an HTMLElement for the context menu (Expand, Collapse, Fix box).
  */
@@ -18,10 +16,9 @@ export function createContextMenuUI(
         refresh?: () => void;
     }
 ): HTMLElement {
-    const menuEl = document.createElement("div");
+    const menuEl = createDiv();
     menuEl.className = "menu context-menu-root";
-    menuEl.style.left = `${x}px`;
-    menuEl.style.top = `${y}px`;
+    menuEl.setCssStyles({ left: `${x}px`, top: `${y}px` });
     //add mouse hoover
 
     menuEl.createDiv({ cls: "menu-grabber" });
@@ -62,7 +59,7 @@ export function createContextMenuUI(
 
     document.body.appendChild(menuEl);
 
-    setTimeout(() => {
+    window.setTimeout(() => {
         document.addEventListener("click", closeHandler, true);
     }, 0);
 
@@ -73,13 +70,15 @@ export function createContextMenuUI(
 
 export function createGearIcon(onChange: (action: ParamUpdateAction, val: number) => void): HTMLElement {
     // Rely on global CSS for button styling
-    const buttonEl = document.createElement("button");
+    const buttonEl = createEl("button");
     buttonEl.className = "clickable-icon graph-controls-button";
     buttonEl.setAttribute("aria-label", "Settings");
     setIcon(buttonEl, "wrench");
-    buttonEl.style.display = "inline-flex";
-    buttonEl.style.alignItems = "center";
-    buttonEl.style.justifyContent = "center";
+    buttonEl.setCssStyles({
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+    });
 
     let menuEl: HTMLElement | null = null;
     let listeners: { listener: EventListener; type: string; options: boolean | AddEventListenerOptions }[] = [];
@@ -122,7 +121,7 @@ export function createGearIcon(onChange: (action: ParamUpdateAction, val: number
         if (top + 300 > window.innerHeight) top = rect.top - 300 - margin;
         if (top < margin) top = margin;
 
-        Object.assign(menuEl.style, {
+        menuEl.setCssStyles({
             position: "fixed",
             left: `${left}px`,
             top: `${top}px`,
@@ -130,7 +129,7 @@ export function createGearIcon(onChange: (action: ParamUpdateAction, val: number
             width: "250px"
         });
 
-        setTimeout(() => {
+        window.setTimeout(() => {
             const onMouseDown = (handleClose as EventListener);
             const onEscape = ((e: KeyboardEvent) => {
                 if (e.key === "Escape") handleClose(e);
@@ -151,7 +150,7 @@ export function createGearIcon(onChange: (action: ParamUpdateAction, val: number
 
 
 function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpdateAction, val: number) => void): HTMLElement {
-    const menuEl = document.createElement("div");
+    const menuEl = createDiv();
     menuEl.className = "menu compact-parameters-menu";
 
     // Compact Header
@@ -172,8 +171,8 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
         label: string, 
         tooltipText: string, 
         type: "number" | "checkbox", 
-        value: any, 
-        onInput: (v: any) => void
+        value: number | boolean, 
+        onInput: (v: number | boolean) => void
     ) => {
         const row = menuEl.createDiv({ cls: "setting-item" });
         row.style.cssText = `
@@ -202,20 +201,20 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
 
         // Subtle info icon (ⓘ) that reveals description on hover
         const infoIcon = nameEl.createSpan({ text: "ⓘ" });
-        infoIcon.style.cssText = "font-size: 0.75rem; color: var(--text-muted); opacity: 0.7;";
+        infoIcon.setCssStyles({ fontSize: "0.75rem", color: "var(--text-muted)", opacity: "0.7" });
 
         // Attach Obsidian native tooltip
         setTooltip(nameEl, tooltipText, { placement: "left", delay: 300});        
 
         // Right side: Compact Control
         const control = row.createDiv({ cls: "setting-item-control" });
-        control.style.margin = "0";
+        control.setCssStyles({ margin: "0" });
 
         const input = control.createEl("input", { type });
 
         if (type === "checkbox") {
-            input.checked = value;
-            input.style.cssText = "cursor: pointer; margin: 0;";
+            input.checked = value as boolean;
+            input.setCssStyles({ cursor: "pointer", margin: "0" });
             input.addEventListener("change", () => onInput(input.checked));
         } else {
             input.value = String(value);
@@ -232,8 +231,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
 
             // Vérification initiale lors de l'affichage
             if (typeof value === "number" && value < 0) {
-                input.style.borderColor = "var(--text-error)";
-                input.style.color = "var(--text-error)";
+                input.setCssStyles({ borderColor: "var(--text-error)", color: "var(--text-error)" });
             }
 
             input.addEventListener("input", () => {
@@ -241,13 +239,11 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
 
                 // Si la valeur est négative ou non valide (NaN)
                 if (Number.isNaN(num) || num < 0) {
-                    input.style.borderColor = "var(--text-error)";
-                    input.style.color = "var(--text-error)";
+                    input.setCssStyles({ borderColor: "var(--text-error)", color: "var(--text-error)" });
                     // N'appelle PAS onInput(num)
                 } else {
                     // Rétablissement du style par défaut et déclenchement du callback
-                    input.style.borderColor = "var(--background-modifier-border)";
-                    input.style.color = "var(--text-normal)";
+                    input.setCssStyles({ borderColor: "var(--background-modifier-border)", color: "var(--text-normal)" });
                     onInput(num);
                 }
             });
@@ -260,7 +256,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
         "any heading that has a depth greater than this value will be collapsed", 
         "number", 
         params.collapseDepth, 
-        (v) => { onChange(ParamUpdateAction.collapseDepth, v); }
+        (v) => { onChange(ParamUpdateAction.collapseDepth, v as number); }
     );
 
     createSetting(
@@ -268,7 +264,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
         "It is the smaller interval between file index updates", 
         "number", 
         params.refreshRate, 
-        (v) => { onChange(ParamUpdateAction.refreshRate, v); }
+        (v) => { onChange(ParamUpdateAction.refreshRate, v as number); }
     );
 
     createSetting(
@@ -276,7 +272,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
         "If the depth difference between adjacent headings is greater than this value, the deeper heading will be collapsed", 
         "number", 
         params.dynamicCollapseDepthDiff, 
-        (v) => { onChange(ParamUpdateAction.dynamicCollapseDepthDiff, v); }
+        (v) => { onChange(ParamUpdateAction.dynamicCollapseDepthDiff, v as number); }
     );
 
     createSetting(

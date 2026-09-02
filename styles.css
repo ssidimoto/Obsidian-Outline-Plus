@@ -1,8 +1,39 @@
 /*
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
+This CSS file is included with the plugin and is loaded by Obsidian
+when the plugin is enabled.
 
 */
+/*
+These two rules were previously injected at runtime as a <style> element appended
+to <head>, which placed them after the theme. A plugin's styles.css is inserted
+before the theme's stylesheet, so `body` is prepended to keep them winning ties
+against theme rules exactly as they did before.
+*/
+body .tooltip {
+	z-index: 10000;
+	background-color: rgba(0, 0, 0, 0.5);
+	text-align: left;
+	padding: 5px;
+}
+
+body .menu-item:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* Message shown in the view when no compatible file is open. */
+.file-outline-error {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	font-size: 14px;
+	color: #909090;
+}
+
+/* Invisible spacer that reserves horizontal room inside a heading's children container. */
+.file-outline-spacer {
+	width: 460px;
+	height: 0.1px;
+	margin-bottom: 0;
+}

@@ -47,6 +47,7 @@ export class TreeFileUi {
                 case TreeAction.Error:
                     this.destroyTree();
                     this.error();
+                    break;
                 default:
                     break;
             }
@@ -58,37 +59,32 @@ export class TreeFileUi {
         const rootHeadingNode = new HeadingNode(rootHeading, -1, 0);
 
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode);
-        rootHTMLHeadingNode.data.childrens.style = "border-inline-start: none;";
+        rootHTMLHeadingNode.data.childrens.setCssStyles({ borderInlineStart: "none" });
         this.container.appendChild(rootHTMLHeadingNode.data.FolderEl);
         rootHTMLHeadingNode.data.IconEl.parentElement?.append(createGearIcon((action: ParamUpdateAction, val: number) => this.viewModel.onChange(action, val)));
-        rootHTMLHeadingNode.data.IconEl.parentElement!.style.display = "flex";
-        rootHTMLHeadingNode.data.IconEl.parentElement!.style.alignItems = "center";
-        rootHTMLHeadingNode.data.IconEl.parentElement!.style.width = "100%";
-        rootHTMLHeadingNode.data.TitleEl.style.flex = "1 1 auto";
+        rootHTMLHeadingNode.data.IconEl.parentElement!.setCssStyles({
+            display: "flex",
+            alignItems: "center",
+            width: "100%",
+        });
+        rootHTMLHeadingNode.data.TitleEl.setCssStyles({ flex: "1 1 auto" });
         this.tree = new HeadingsTree<HtmlHeading>(rootHTMLHeadingNode);
         this.nodeDict.set(rootHTMLHeadingNode.id, rootHTMLHeadingNode);
     }
 
     error(){
-        let css = 
-        `position: absolute; top: 
-        50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; 
-        color: var(--text-normal); color: #909090;`
-
         this.container.empty();
-        const wrapper = document.createElement("div");
-        wrapper.style.cssText = css;
-        const errorEl = document.createElement("div");
+        const wrapper = createDiv({ cls: "file-outline-error" });
+        const errorEl = createDiv();
         //append child with text error : 
-        let error = document.createElement("div");
-        error.innerHTML = "Error :"
+        const error = createDiv();
+        error.textContent = "Error :"
         wrapper.appendChild(error);
-        wrapper.appendChild(document.createElement("r"));
         errorEl.textContent = "No compatible file found."
         wrapper.appendChild(errorEl);
-        wrapper.appendChild(document.createElement("br"));
-        const errorEl2 = document.createElement("div");
-        errorEl2.textContent = "Please open a Markdown file to use the File Outline view."
+        wrapper.appendChild(createEl("br"));
+        const errorEl2 = createDiv();
+        errorEl2.textContent = "Please open a Markdown file to use the file outline view."
         wrapper.appendChild(errorEl2);
         this.container.appendChild(wrapper);
     }
@@ -109,8 +105,7 @@ export class TreeFileUi {
         if (this.hooveredNode) {
             const previousEl = this.hooveredNode.data.IconEl.parentElement;
             if (previousEl) {
-                previousEl.style.backgroundColor = "";
-                previousEl.style.transform = "";
+                previousEl.setCssStyles({ backgroundColor: "", transform: "" });
             }
         }
 
@@ -153,9 +148,11 @@ export class TreeFileUi {
         // 5. Apply highlight
         const element = closestNode.data.IconEl.parentElement;
         if (element) {
-            element.style.backgroundColor = "var(--background-modifier-hover)"; // Utilise la couleur du thème Obsidian
-            element.style.transform = "scale(1.05)";
-            element.style.transition = "transform 150ms ease, background-color 150ms ease";
+            element.setCssStyles({
+                backgroundColor: "var(--background-modifier-hover)", // Utilise la couleur du thème Obsidian
+                transform: "scale(1.05)",
+                transition: "transform 150ms ease, background-color 150ms ease",
+            });
         }
 
         this.hooveredNode = closestNode;
@@ -166,7 +163,7 @@ export class TreeFileUi {
         const uiNode = this.nodeDict.get(node.id);
         if (uiNode) {
             uiNode.data.lineNbr = node.data.lineNbr;
-            uiNode.data.width = (node.data as any).width ?? 0;
+            uiNode.data.width = node.data.width ?? 0;
         }
     }
 
@@ -177,7 +174,7 @@ export class TreeFileUi {
         if (node.parent) {
             this.addHTMLinChild(node.parent, node);
             node.parent.data.isItem = false;
-            node.parent.data.IconEl.style.display = "block";
+            node.parent.data.IconEl.setCssStyles({ display: "block" });
         }
 
         //add all its child and remove them from current node parent
@@ -186,14 +183,14 @@ export class TreeFileUi {
                 this.addHTMLinChild(node, child);
             });
             node.data.isItem = false;
-            node.data.IconEl.style.display = "block";
+            node.data.IconEl.setCssStyles({ display: "block" });
         }
 
         //if prev sibling no more child remove its icon
         let prevSibling = node.parent?.childrens[node.parent.childrens.indexOf(node) - 1];
         if (prevSibling && prevSibling.childrens.length === 0) {
             prevSibling.data.isItem = true;
-            prevSibling.data.IconEl.style.display = "none";
+            prevSibling.data.IconEl.setCssStyles({ display: "none" });
         }
     }
 
@@ -203,7 +200,7 @@ export class TreeFileUi {
         
         const parentNode = node.parent;
         let childrens = node.childrens;
-        let index = parentNode!.childrens.indexOf(node);
+        let index = parentNode.childrens.indexOf(node);
         node.data.FolderEl.remove();
         this.tree.removeNode(node);
         //add childrens to previous sibling or if not siblings ot parent as first elems
@@ -216,7 +213,7 @@ export class TreeFileUi {
                     child.parent = previousSibling!;
                 });
                 previousSibling!.data.isItem = false;
-                previousSibling!.data.IconEl.style.display = "block";
+                previousSibling!.data.IconEl.setCssStyles({ display: "block" });
             } else {
                 childrens.forEach((child) => {
                     this.addHTMLinChild(parentNode, child);
@@ -228,7 +225,7 @@ export class TreeFileUi {
 
         if (parentNode.childrens.length === 0) {
             parentNode.data.isItem = true;
-            parentNode.data.IconEl.style.display = "none";
+            parentNode.data.IconEl.setCssStyles({ display: "none" });
         }
     }
 
@@ -261,47 +258,48 @@ export class TreeFileUi {
     }
 
     newNode(node: HeadingNode<Heading>): HeadingNode<HtmlHeading> {
-        const folderEl = document.createElement("div");
+        const folderEl = createDiv();
         folderEl.className = "tree-item nav-folder";
 
-        const folderSelf = document.createElement("div");
+        const folderSelf = createDiv();
         folderSelf.className = "tree-item-self nav-folder-title is-clickable mod-collapsible";
         folderSelf.setAttribute("draggable", "true");
-        folderSelf.setAttribute("style", "margin-inline-start: 0px !important; padding-inline-start: 24px !important;");
+        folderSelf.setCssStyles({ marginInlineStart: "0px", paddingInlineStart: "24px" });
 
-        const iconContainer = document.createElement("div");
+        const iconContainer = createDiv();
         iconContainer.className = "tree-item-icon collapse-icon";
         if (node.childrens.length === 0) {
-            iconContainer.style.display = "none";
+            iconContainer.setCssStyles({ display: "none" });
         }
 
-        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-        svg.setAttribute("width", "24");
-        svg.setAttribute("height", "24");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("fill", "none");
-        svg.setAttribute("stroke", "currentColor");
-        svg.setAttribute("stroke-width", "2");
-        svg.setAttribute("stroke-linecap", "round");
-        svg.setAttribute("stroke-linejoin", "round");
-        svg.setAttribute("class", "svg-icon right-triangle");
+        const svg = createSvg("svg", {
+            attr: {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "24",
+                height: "24",
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                "stroke-width": "2",
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+                class: "svg-icon right-triangle",
+            },
+        });
 
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", "M3 8L12 17L21 8");
+        const path = createSvg("path", { attr: { d: "M3 8L12 17L21 8" } });
         svg.appendChild(path);
         iconContainer.appendChild(svg);
 
-        const titleEl = document.createElement("div");
+        const titleEl = createDiv();
         titleEl.className = "tree-item-inner nav-folder-title-content";
         titleEl.setAttribute("data-initialized", "true");
         this.renderHeadingTitle(titleEl, node.data.headLine);
 
-        const children = document.createElement("div");
+        const children = createDiv();
         children.className = "tree-item-children nav-folder-children";
 
-        const spacer = document.createElement("div");
-        spacer.setAttribute("style", "width: 460px; height: 0.1px; margin-bottom: 0px;");
+        const spacer = createDiv({ cls: "file-outline-spacer" });
         children.appendChild(spacer); 
 
         folderSelf.appendChild(iconContainer);
@@ -316,7 +314,7 @@ export class TreeFileUi {
             children,
             false,
             node.data.lineNbr,
-            (node.data as any).width ?? 0
+            node.data.width ?? 0
         );
         
         // Collapse statique à l'initialisation (sans animations)
@@ -334,7 +332,7 @@ export class TreeFileUi {
 
         folderEl.addEventListener("click", (e) => {
             e.stopPropagation();
-            this.viewModel.OnHeadingClicked(headingNode.id);
+            void this.viewModel.OnHeadingClicked(headingNode.id);
             if(headingNode.data.IconEl.classList.contains("is-collapsed")) {
                 this.OnHeadingButtonClicked(headingNode.data);
             }
@@ -364,7 +362,7 @@ export class TreeFileUi {
     }
 
     OnHeadingButtonClicked(node: HtmlHeading) {
-        const childrenEl = node.childrens as HTMLElement;
+        const childrenEl = node.childrens;
 
         if (node.IconEl.classList.contains("is-collapsed")) {
             node.IconEl.classList.remove("is-collapsed");
@@ -390,7 +388,7 @@ export class TreeFileUi {
     containerEl.empty();
     if (!titleText) return;
 
-    const mathRegex = /\$([^\$]+)\$/g;
+    const mathRegex = /\$([^$]+)\$/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
@@ -403,9 +401,11 @@ export class TreeFileUi {
         const mathEl = renderMath(mathContent, true);
         
         // Force inline rendering
-        mathEl.style.display = "inline-block";
-        mathEl.style.verticalAlign = "middle";
-        mathEl.style.margin = "0 2px";
+        mathEl.setCssStyles({
+            display: "inline-block",
+            verticalAlign: "middle",
+            margin: "0 2px",
+        });
 
         containerEl.appendChild(mathEl);
         lastIndex = mathRegex.lastIndex;
@@ -415,6 +415,6 @@ export class TreeFileUi {
         containerEl.appendText(titleText.slice(lastIndex));
     }
 
-    finishRenderMath();
+    void finishRenderMath();
 }
 }

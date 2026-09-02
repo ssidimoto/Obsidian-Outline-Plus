@@ -5,20 +5,24 @@ import {SETTINGS} from "../main";
 
 export function animateCollapse(childrenEl: HTMLElement) {
         const startHeight = childrenEl.scrollHeight;
-        childrenEl.style.overflow = "hidden";
-        childrenEl.style.height = `${startHeight}px`;
-        childrenEl.style.transition = "height 150ms ease";
+        childrenEl.setCssStyles({
+            overflow: "hidden",
+            height: `${startHeight}px`,
+            transition: "height 150ms ease",
+        });
         
         void childrenEl.offsetHeight; // Force reflow
-        childrenEl.style.height = "0px";
+        childrenEl.setCssStyles({ height: "0px" });
 
         const onEnd = (event: TransitionEvent) => {
             if (event.target !== childrenEl) return;
             childrenEl.removeEventListener("transitionend", onEnd);
             childrenEl.remove();
-            childrenEl.style.height = "";
-            childrenEl.style.overflow = "";
-            childrenEl.style.transition = "";
+            childrenEl.setCssStyles({
+                height: "",
+                overflow: "",
+                transition: "",
+            });
         };
         childrenEl.addEventListener("transitionend", onEnd);
         
@@ -70,19 +74,23 @@ export function collapseSubtree(node: HeadingNode<HtmlHeading>, OnHeadingButtonC
 
 export function animateExpand(childrenEl: HTMLElement) {
     const targetHeight = childrenEl.scrollHeight;
-    childrenEl.style.overflow = "hidden";
-    childrenEl.style.height = "0px";
-    childrenEl.style.transition = "height 150ms ease";
+    childrenEl.setCssStyles({
+        overflow: "hidden",
+        height: "0px",
+        transition: "height 150ms ease",
+    });
     
     void childrenEl.offsetHeight; // Force reflow
-    childrenEl.style.height = `${targetHeight}px`;
+    childrenEl.setCssStyles({ height: `${targetHeight}px` });
 
     const onEnd = (event: TransitionEvent) => {
         if (event.target !== childrenEl) return;
         childrenEl.removeEventListener("transitionend", onEnd);
-        childrenEl.style.height = "";
-        childrenEl.style.overflow = "";
-        childrenEl.style.transition = "";
+        childrenEl.setCssStyles({
+            height: "",
+            overflow: "",
+            transition: "",
+        });
     };
     childrenEl.addEventListener("transitionend", onEnd);
 }
@@ -114,10 +122,10 @@ export function collapsePathToNode(node: HeadingNode<HtmlHeading>, OnHeadingButt
     
     for (const child of node.childrens) {
         collapsePathToNode(child, OnHeadingButtonClicked, initdepth);
-        if (!child.parent!.data.IconEl.classList.contains("is-collapsed")) {
+        if (!child.parent.data.IconEl.classList.contains("is-collapsed")) {
             if(child.depth > SETTINGS.collapseDepth && (Math.abs(child.depth - initdepth) > SETTINGS.dynamicCollapseDepthDiff || SETTINGS.dynamicCollapseDepthDiff === 0)
-            && !child.parent!.data.IconEl.classList.contains("is-collapsed")) { // don't collapse root node
-                OnHeadingButtonClicked(child.parent!.data);
+            && !child.parent.data.IconEl.classList.contains("is-collapsed")) { // don't collapse root node
+                OnHeadingButtonClicked(child.parent.data);
             }
         }
     } 
@@ -127,7 +135,7 @@ export function renderHeadingTitle(containerEl: HTMLElement, titleText: string):
     containerEl.empty();
     if (!titleText) return;
 
-    const mathRegex = /\$([^\$]+)\$/g;
+    const mathRegex = /\$([^$]+)\$/g;
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
@@ -140,9 +148,11 @@ export function renderHeadingTitle(containerEl: HTMLElement, titleText: string):
         const mathEl = renderMath(mathContent, true);
         
         // Force inline rendering
-        mathEl.style.display = "inline-block";
-        mathEl.style.verticalAlign = "middle";
-        mathEl.style.margin = "0 2px";
+        mathEl.setCssStyles({
+            display: "inline-block",
+            verticalAlign: "middle",
+            margin: "0 2px",
+        });
 
         containerEl.appendChild(mathEl);
         lastIndex = mathRegex.lastIndex;
@@ -152,5 +162,5 @@ export function renderHeadingTitle(containerEl: HTMLElement, titleText: string):
         containerEl.appendText(titleText.slice(lastIndex));
     }
 
-    finishRenderMath();
+    void finishRenderMath();
 }

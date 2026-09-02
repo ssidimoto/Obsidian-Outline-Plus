@@ -1,4 +1,4 @@
-# Advanced Outline for Obsidian
+# File Outline Plus
 
 A high-performance, context-aware, and feature-packed document outline sidebar for Obsidian.
 

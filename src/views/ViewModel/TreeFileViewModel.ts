@@ -1,10 +1,44 @@
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import FileTreeViewPlugin from "main";
-import { EditorPosition, MarkdownView, TFile, debounce, Editor } from "obsidian";
+import { EditorPosition, EditorRange, MarkdownView, TFile, debounce, Editor } from "obsidian";
 import { BehaviorSubject } from 'rxjs';
 import { EditorView } from '@codemirror/view';
 import { SETTINGS } from "../../main";
+
+/** Reading mode of the active file view. */
+interface PreviewFileViewMode {
+  type: "preview";
+  renderer: {
+    applyScroll(line: number, options: { center: boolean; highlight: boolean }): void;
+  };
+}
+
+/** Editing mode of the active file view. */
+interface SourceFileViewMode {
+  type: "source";
+  editor: Editor;
+}
+
+interface ActiveFileView {
+  currentMode: PreviewFileViewMode | SourceFileViewMode;
+}
+
+declare module "obsidian" {
+  interface Workspace {
+    /** Internal API: the file view that is currently active. */
+    getActiveFileView(): ActiveFileView;
+  }
+
+  interface Editor {
+    /** Internal API: the underlying CodeMirror view. */
+    cm?: EditorView;
+    /** Internal API: highlights the given ranges with the given style. */
+    addHighlights(ranges: EditorRange[], style: string): void;
+    /** Internal API: removes the highlights previously added with the given style. */
+    removeHighlights(style?: string): void;
+  }
+}
 
 export const maxHeadingDepth = 6;
 
@@ -50,7 +84,7 @@ export class TreeFileViewModel {
   readonly change$ = this.change.asObservable();
   
   highlight: number = 0;
-  nodeArr: HeadingNode<Heading>[] = [];
+  nodeArr: (HeadingNode<Heading> | undefined)[] = [];
   hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
 
   // Debounce the live editor parsing to maintain high typing performance (150ms delay)
@@ -76,7 +110,6 @@ export class TreeFileViewModel {
       let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
       //if view null means file got deleted
       if(view === null) {
-        console.log("File closed or deleted, destroying tree.");
         this.destroyTree();
         this.change.next(new TreeChange(TreeAction.Error));
       }
@@ -88,10 +121,9 @@ export class TreeFileViewModel {
       this.plugin.app.workspace.on('file-open', (file: TFile | null) => {
         //get active mark down file
         let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
-        console.log(`Active file changed to: ${file?.basename ?? "none"}`);
 
         if (file && view && view.file && file.basename == view.file.basename) {
-          this.handleFile(file);
+          void this.handleFile(file);
         } else {
           this.destroyTree();
           this.change.next(new TreeChange(TreeAction.Error));
@@ -106,7 +138,7 @@ export class TreeFileViewModel {
         if (activeFile && info?.file && info.file.path === activeFile.path && SETTINGS.manualUpdate === false) {
             this.lastKnownFile = info.file;
             this.debouncedEditorSync(editor);
-            setTimeout(() => {
+            window.setTimeout(() => {
             }, SETTINGS.refreshRate); // Refresh rate is handled by the debounce function
         }
       })
@@ -122,20 +154,19 @@ export class TreeFileViewModel {
     );
 
     //load params from lcoalstorage and load them into defautl params
-    const savedSettings = localStorage.getItem('fileTreeSettings');
+    const savedSettings = this.plugin.app.loadLocalStorage('fileTreeSettings') as Partial<typeof SETTINGS> | null;
     if (savedSettings) {
-        Object.assign(SETTINGS, JSON.parse(savedSettings));
+        Object.assign(SETTINGS, savedSettings);
     }
 
     //store current data parameters when app is closed
     this.plugin.registerEvent(
         this.plugin.app.workspace.on('quit', () => {
-            localStorage.setItem('fileTreeSettings', JSON.stringify(SETTINGS));
+            this.plugin.app.saveLocalStorage('fileTreeSettings', SETTINGS);
         })
     );
 
     if(!this.lastKnownFile) {
-      console.log("No active file found during scroll event.");
       this.change.next(new TreeChange(TreeAction.Error));
     }
   }
@@ -179,16 +210,14 @@ export class TreeFileViewModel {
 
   /** Reset tree on file switch */
   private async handleFile(file: TFile) {
-    console.log(`Handling file switch to: ${file.basename}`);
     this.lastKnownFile = file;
     this.fileName = file.basename;
     this.tree.root.childrens = [];
     this.nodeArr = [];
     this.id = 1;
 
-    console.log(`Switching to file: ${file.basename}`);
     this.destroyTree();
-    this.syncTreeFromFile(file);
+    void this.syncTreeFromFile(file);
   }
 
   destroyTree() {
@@ -202,7 +231,7 @@ export class TreeFileViewModel {
   private syncTreeFromEditor(editor: Editor) {
     const doc = editor.getValue();
     this.lastParsedDoc = doc;
-    const cmView = (editor as any).cm as EditorView | undefined;
+    const cmView = editor.cm;
     const totalLines = editor.lineCount();
 
     const HEADING_REGEX = /^#{1,6}\s+(.*)$/gm;
@@ -323,7 +352,7 @@ export class TreeFileViewModel {
       if (!newMap.has(key)) {
         this.tree.removeNode(oldNode);
 
-        delete this.nodeArr[oldNode.id];
+        this.nodeArr[oldNode.id] = undefined;
         this.change.next(new TreeChange(TreeAction.delete, oldNode.id));
       } else {
         const newItem = newMap.get(key)!;
@@ -354,7 +383,7 @@ export class TreeFileViewModel {
 
   /** Scrolling execution when heading clicked */
   async OnHeadingClicked(id: number) {
-    const fileView = (this.plugin.app.workspace as any).getActiveFileView();
+    const fileView = this.plugin.app.workspace.getActiveFileView();
     const node = this.nodeArr[id];
     
     if (node === undefined) {
@@ -380,7 +409,7 @@ export class TreeFileViewModel {
       view.editor.addHighlights(ranges, "is-flashing");
       this.highlight += 1;
       
-      setTimeout(() => {
+      window.setTimeout(() => {
         if (this.highlight === 1) {
           view.editor.removeHighlights(undefined);
           this.highlight = 0;
@@ -394,7 +423,7 @@ export class TreeFileViewModel {
   }
 
   getExactCenterLine(editor: Editor | EditorView, zeroBased: boolean = true): number {
-      const cmView = editor instanceof EditorView ? editor : (editor as any).cm as EditorView | undefined;
+      const cmView = editor instanceof EditorView ? editor : editor.cm;
       if (!cmView) return (editor as Editor).getCursor().line;
 
       const scroller = cmView.scrollDOM;

@@ -134,7 +134,7 @@ export class HeadingNode<T extends Itemhierarchy> {
                 }
             }
         }
-        return this.childrens.at(-1)!.findClosestNode(lineNbr);
+        return this.childrens[this.childrens.length - 1]!.findClosestNode(lineNbr);
     }
 
     toString(): string {
