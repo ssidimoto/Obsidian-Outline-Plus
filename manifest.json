@@ -1,7 +1,7 @@
 {
 	"id": "file-outline-plus",
 	"name": "File Outline Plus",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"minAppVersion": "1.8.7",
 	"description": "A document outline sidebar with collapsible headings, active-position tracking and inline LaTeX rendering.",
 	"author": "Anas Sidi Mohamed",
