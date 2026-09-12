@@ -1,35 +1,14 @@
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
 import FileTreeViewPlugin from "main";
-import { EditorPosition, EditorRange, MarkdownView, TFile, debounce, Editor } from "obsidian";
+import { Component, EditorPosition, EditorRange, MarkdownView, TFile, debounce, Editor } from "obsidian";
 import { BehaviorSubject } from 'rxjs';
 import { EditorView } from '@codemirror/view';
 import { SETTINGS } from "../../main";
-
-/** Reading mode of the active file view. */
-interface PreviewFileViewMode {
-  type: "preview";
-  renderer: {
-    applyScroll(line: number, options: { center: boolean; highlight: boolean }): void;
-  };
-}
-
-/** Editing mode of the active file view. */
-interface SourceFileViewMode {
-  type: "source";
-  editor: Editor;
-}
-
-interface ActiveFileView {
-  currentMode: PreviewFileViewMode | SourceFileViewMode;
-}
+import { ScrollTracker } from "../ScrollTracker";
+import { applyPreviewScroll } from "../PreviewScroll";
 
 declare module "obsidian" {
-  interface Workspace {
-    /** Internal API: the file view that is currently active. */
-    getActiveFileView(): ActiveFileView;
-  }
-
   interface Editor {
     /** Internal API: the underlying CodeMirror view. */
     cm?: EditorView;
@@ -74,6 +53,12 @@ export class TreeChange {
  */
 export class TreeFileViewModel {
   plugin: FileTreeViewPlugin;
+  /**
+   * Every listener is registered here rather than on the plugin, so closing the outline
+   * pane takes them all with it. A second pane would otherwise stack a second full set,
+   * re-parsing the document once more on every keystroke.
+   */
+  private owner: Component;
   tree!: HeadingsTree<Heading>;
   id: number = 1;
   fileName: string | null = null;
@@ -87,13 +72,22 @@ export class TreeFileViewModel {
   nodeArr: (HeadingNode<Heading> | undefined)[] = [];
   hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
 
+  /** Follows the reading position in both editing and reading mode. */
+  private scrollTracker!: ScrollTracker;
+
+  /** Path of the note the outline currently mirrors, used to resolve relative links. */
+  get sourcePath(): string {
+    return this.lastKnownFile?.path ?? "";
+  }
+
   // Debounce the live editor parsing to maintain high typing performance (150ms delay)
   private debouncedEditorSync = debounce((editor: Editor) => {
     this.syncTreeFromEditor(editor);
   }, 0, true);
 
-  constructor(plugin: FileTreeViewPlugin) {
+  constructor(plugin: FileTreeViewPlugin, owner: Component) {
     this.plugin = plugin;
+    this.owner = owner;
     this.init();
   }
 
@@ -105,19 +99,23 @@ export class TreeFileViewModel {
     //detect file closing even if not focus
 
   //listen with layout change and print some deug info
-  this.plugin.registerEvent(
+  this.owner.registerEvent(
     this.plugin.app.workspace.on('layout-change', () => {
-      let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
+      let view = this.getOutlineMarkdownView();
       //if view null means file got deleted
       if(view === null) {
         this.destroyTree();
         this.change.next(new TreeChange(TreeAction.Error));
+      } else {
+        // Covers toggling between editing and reading mode: the new mode has just been
+        // laid out, so the highlight has to be recomputed from it.
+        this.scrollTracker.resync(view);
       }
 
     })
   );
     // 1. Listen for active file change
-    this.plugin.registerEvent(
+    this.owner.registerEvent(
       this.plugin.app.workspace.on('file-open', (file: TFile | null) => {
         //get active mark down file
         let view = this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
@@ -132,7 +130,7 @@ export class TreeFileViewModel {
     );
 
     // 2. Listen for live editor changes (Instant UI!)
-    this.plugin.registerEvent(
+    this.owner.registerEvent(
       this.plugin.app.workspace.on('editor-change', (editor, info) => {
         const activeFile = this.plugin.app.workspace.getActiveFile();
         if (activeFile && info?.file && info.file.path === activeFile.path && SETTINGS.manualUpdate === false) {
@@ -144,14 +142,19 @@ export class TreeFileViewModel {
       })
     );
 
-    // 3. Listen for scroll events in CodeMirror
-    this.plugin.registerEditorExtension(
-        EditorView.domEventHandlers({
-            scroll: (event, cmView) => {
-                this.onEditorScroll(cmView);
-            }
-        })
-    );
+    // 3. Follow the reading position. Obsidian reports scrolling for both modes through a
+    // single workspace event, which also tells us which pane scrolled and stays silent for
+    // the scrolls this plugin causes itself.
+    this.scrollTracker = new ScrollTracker(this.plugin.app.workspace, {
+        owner: this.owner,
+        owns: (view) => {
+            const tracked = this.lastKnownFile?.path;
+            return tracked === undefined || view.file?.path === tracked;
+        },
+        currentView: () => this.getOutlineMarkdownView(),
+        sourceLine: (view) => this.editorCenterLine(view),
+        onLine: (line) => { this.change.next(new TreeChange(TreeAction.scrolled, line)); },
+    });
 
     //load params from lcoalstorage and load them into defautl params
     const savedSettings = this.plugin.app.loadLocalStorage('fileTreeSettings') as Partial<typeof SETTINGS> | null;
@@ -160,7 +163,7 @@ export class TreeFileViewModel {
     }
 
     //store current data parameters when app is closed
-    this.plugin.registerEvent(
+    this.owner.registerEvent(
         this.plugin.app.workspace.on('quit', () => {
             this.plugin.app.saveLocalStorage('fileTreeSettings', SETTINGS);
         })
@@ -171,12 +174,42 @@ export class TreeFileViewModel {
     }
   }
 
-  private onEditorScroll(editor: Editor | EditorView) {
-    const centerLine = this.getExactCenterLine(editor, true);
-    this.change.next({
-        action: TreeAction.scrolled,
-        node: centerLine
-    }); 
+  /**
+   * Centre line of a view in editing mode, or null when its editor is not laid out.
+   *
+   * A background tab holding the same file has a zero-height editor: every measurement
+   * would come back as zero and report line 0, snapping the highlight to the first heading.
+   */
+  private editorCenterLine(view: MarkdownView): number | null {
+    const editor = view.editor;
+    const cm = editor?.cm;
+    if (!editor || !cm || cm.scrollDOM.clientHeight === 0) return null;
+
+    return this.getExactCenterLine(editor, true);
+  }
+
+  /**
+   * The markdown view the outline mirrors.
+   *
+   * `getActiveViewOfType` only looks at the active leaf, so it returns null as soon as the
+   * focus moves to the outline's own sidebar leaf. The active file is resolved across all
+   * leaves, so it is used to find the pane again before concluding the file is gone.
+   */
+  private getOutlineMarkdownView(): MarkdownView | null {
+    const workspace = this.plugin.app.workspace;
+
+    const active = workspace.getActiveViewOfType(MarkdownView);
+    if (active) return active;
+
+    const file = workspace.getActiveFile();
+    if (!file) return null;
+
+    for (const leaf of workspace.getLeavesOfType('markdown')) {
+      const view = leaf.view;
+      if (view instanceof MarkdownView && view.file?.path === file.path) return view;
+    }
+
+    return null;
   }
 
   onChange(action: ParamUpdateAction, val: number) {
@@ -188,9 +221,6 @@ export class TreeFileViewModel {
         SETTINGS.collapseDepth = val;
         break;
       case ParamUpdateAction.manualUpdate:
-        if(val) {
-          SETTINGS.manualUpdate = val !== 0;
-        }
         SETTINGS.manualUpdate = val !== 0;
         break;
       case ParamUpdateAction.dynamicCollapseDepthDiff:
@@ -272,6 +302,11 @@ export class TreeFileViewModel {
     const doc = await this.plugin.app.vault.cachedRead(file);
     this.lastParsedDoc = doc;
     this.applyHeadingsData(this.parseHeadingsFromText(doc));
+
+    // The tree only exists now, so a file opened straight into reading mode would otherwise
+    // show no highlight until the first scroll.
+    const view = this.getOutlineMarkdownView();
+    if (view) this.scrollTracker.resync(view);
   }
 
   private parseHeadingsFromText(doc: string): { text: string; level: number; lineNbr: number; width: number }[] {
@@ -383,42 +418,51 @@ export class TreeFileViewModel {
 
   /** Scrolling execution when heading clicked */
   async OnHeadingClicked(id: number) {
-    const fileView = this.plugin.app.workspace.getActiveFileView();
     const node = this.nodeArr[id];
-    
-    if (node === undefined) {
-      throw Error("Node does not exist");
+    const markdownView = this.getOutlineMarkdownView();
+
+    // The root row carries id 0 and has no heading behind it, and a node can be dropped by a
+    // concurrent re-parse: neither is an error, there is simply nowhere to scroll to.
+    if (node === undefined || markdownView === null) {
+      return;
     }
 
-    const view = fileView.currentMode;
-    if (view.type === "preview") {
-      view.renderer.applyScroll(node.data.lineNbr, { center: true, highlight: true });
-    } else if (view.type === "source") {
+    // The jump scrolls the note, which would otherwise be reported straight back and move
+    // the highlight around mid-flight. The target is known, so it is applied directly.
+    this.scrollTracker.suppress();
+    this.scrollTracker.invalidate();
+
+    if (markdownView.getMode() === "preview") {
+      applyPreviewScroll(markdownView, node.data.lineNbr);
+
+      this.change.next(new TreeChange(TreeAction.scrolled, node.data.lineNbr));
+    } else {
+      const editor = markdownView.editor;
       const startPos: EditorPosition = { line: node.data.lineNbr, ch: 0 };
-      const endCh = view.editor.getLine(node.data.lineNbr).length;
+      const endCh = editor.getLine(node.data.lineNbr).length;
       const endPos: EditorPosition = { line: node.data.lineNbr, ch: endCh };
 
       const ranges = [{ from: startPos, to: endPos }];
 
-      view.editor.scrollIntoView({ from: startPos, to: endPos }, true);
-      
+      editor.scrollIntoView({ from: startPos, to: endPos }, true);
+
       if (this.highlight > 0) {
-        view.editor.removeHighlights(undefined);
+        editor.removeHighlights(undefined);
       }
-      
-      view.editor.addHighlights(ranges, "is-flashing");
+
+      editor.addHighlights(ranges, "is-flashing");
       this.highlight += 1;
-      
+
       window.setTimeout(() => {
         if (this.highlight === 1) {
-          view.editor.removeHighlights(undefined);
+          editor.removeHighlights(undefined);
           this.highlight = 0;
         } else {
           this.highlight -= 1;
         }
       }, 3000);
 
-      this.change.next(new TreeChange(TreeAction.scrolled, node.data.lineNbr)); 
+      this.change.next(new TreeChange(TreeAction.scrolled, node.data.lineNbr));
     }
   }
 
@@ -427,7 +471,13 @@ export class TreeFileViewModel {
       if (!cmView) return (editor as Editor).getCursor().line;
 
       const scroller = cmView.scrollDOM;
-      const midY = scroller.scrollTop + scroller.clientHeight / 2;
+
+      // `lineBlockAtHeight` measures from the top of the *content*, while `scrollTop`
+      // measures from the top of the *scroller*. Everything the editor puts above the first
+      // line — the inline title and the properties block — sits between the two, so the
+      // offset has to come out or every reported line is too far down the document.
+      const contentTop = cmView.contentDOM.offsetTop;
+      const midY = Math.max(0, scroller.scrollTop - contentTop + scroller.clientHeight / 2);
 
       const pos = cmView.lineBlockAtHeight(midY).from;
       const line1Based = cmView.state.doc.lineAt(pos).number;

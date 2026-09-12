@@ -1,11 +1,15 @@
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
-import { renderMath, finishRenderMath } from "obsidian";
+import { Component } from "obsidian";
 import { Heading, HtmlHeading } from "datatypes/Heading";
 import { TreeFileViewModel, TreeAction, ParamUpdateAction } from "views/ViewModel/TreeFileViewModel";
 import { Subscription } from "rxjs";
 import { expandPathToNode, animateCollapse, animateExpand, collapsePathToNode, expandSubtree, collapseSubtree } from "./Animation";
 import { createContextMenuUI, createGearIcon } from "./ParametersUI";
+import { renderHeadingTitle } from "./HeadingRenderer";
 import { SETTINGS } from "../main";
+
+/** Marks the heading row the reading position is currently inside. */
+const ACTIVE_ROW_CLASS = "is-active";
 
 /** UI builder for the headings tree. */
 export class TreeFileUi {
@@ -15,11 +19,31 @@ export class TreeFileUi {
     container: HTMLElement;
     hooveredNode: HeadingNode<HtmlHeading> | undefined = undefined;
     private changeSubscription?: Subscription;
+    /** Loaded component the rendered titles hang off, so they die with the view. */
+    private owner: Component;
+    /**
+     * One component per row, owning whatever rendering that row's title spawned (math,
+     * embeds, link popovers). Retired with the row so nothing accumulates across edits.
+     */
+    private rowScopes: Map<number, Component> = new Map();
 
-    constructor(viewModel: TreeFileViewModel, container: HTMLElement) {
+    constructor(viewModel: TreeFileViewModel, container: HTMLElement, owner: Component) {
         this.viewModel = viewModel;
         this.container = container;
+        this.owner = owner;
         this.init();
+    }
+
+    private retireRowScope(nodeId: number) {
+        const scope = this.rowScopes.get(nodeId);
+        if (!scope) return;
+        this.owner.removeChild(scope);
+        this.rowScopes.delete(nodeId);
+    }
+
+    private retireAllRowScopes() {
+        for (const scope of this.rowScopes.values()) this.owner.removeChild(scope);
+        this.rowScopes.clear();
     }
 
     init() {
@@ -34,9 +58,10 @@ export class TreeFileUi {
                     this.deleteNode(change.node as number);
                     break;
                 case TreeAction.destroy:
-                    this.removeError();
+                    // Tear down first: rebuilding the root row registers a new scope that
+                    // the teardown would otherwise retire straight away.
                     this.destroyTree();
-
+                    this.removeError();
                     break;
                 case TreeAction.scrolled:
                     if (change.node !== undefined && change.node !== null) this.scrollToLine(change.node as number);
@@ -59,15 +84,11 @@ export class TreeFileUi {
         const rootHeadingNode = new HeadingNode(rootHeading, -1, 0);
 
         const rootHTMLHeadingNode = this.newNode(rootHeadingNode);
-        rootHTMLHeadingNode.data.childrens.setCssStyles({ borderInlineStart: "none" });
+        rootHTMLHeadingNode.data.childrens.classList.add("file-outline-root-children");
         this.container.appendChild(rootHTMLHeadingNode.data.FolderEl);
         rootHTMLHeadingNode.data.IconEl.parentElement?.append(createGearIcon((action: ParamUpdateAction, val: number) => this.viewModel.onChange(action, val)));
-        rootHTMLHeadingNode.data.IconEl.parentElement!.setCssStyles({
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-        });
-        rootHTMLHeadingNode.data.TitleEl.setCssStyles({ flex: "1 1 auto" });
+        rootHTMLHeadingNode.data.IconEl.parentElement?.classList.add("file-outline-root-self");
+        rootHTMLHeadingNode.data.TitleEl.classList.add("file-outline-root-title");
         this.tree = new HeadingsTree<HtmlHeading>(rootHTMLHeadingNode);
         this.nodeDict.set(rootHTMLHeadingNode.id, rootHTMLHeadingNode);
     }
@@ -103,10 +124,7 @@ export class TreeFileUi {
 
         // 1. Reset previously highlighted element
         if (this.hooveredNode) {
-            const previousEl = this.hooveredNode.data.IconEl.parentElement;
-            if (previousEl) {
-                previousEl.setCssStyles({ backgroundColor: "", transform: "" });
-            }
+            this.hooveredNode.data.IconEl.parentElement?.classList.remove(ACTIVE_ROW_CLASS);
         }
 
         // 2. Déplier automatiquement tous les parents pour rendre le nœud visible
@@ -146,14 +164,7 @@ export class TreeFileUi {
             });
         }
         // 5. Apply highlight
-        const element = closestNode.data.IconEl.parentElement;
-        if (element) {
-            element.setCssStyles({
-                backgroundColor: "var(--background-modifier-hover)", // Utilise la couleur du thème Obsidian
-                transform: "scale(1.05)",
-                transition: "transform 150ms ease, background-color 150ms ease",
-            });
-        }
+        closestNode.data.IconEl.parentElement?.classList.add(ACTIVE_ROW_CLASS);
 
         this.hooveredNode = closestNode;
     }
@@ -202,6 +213,7 @@ export class TreeFileUi {
         let childrens = node.childrens;
         let index = parentNode.childrens.indexOf(node);
         node.data.FolderEl.remove();
+        this.retireRowScope(nodeId);
         this.tree.removeNode(node);
         //add childrens to previous sibling or if not siblings ot parent as first elems
         if (parentNode) {
@@ -234,7 +246,7 @@ export class TreeFileUi {
         this.clearTreeHtml(this.tree.root.data);
         this.nodeDict.clear();
         this.nodeDict.set(this.tree.root.id, this.tree.root);
-
+        this.retireAllRowScopes();
     }
 
     addHTMLinChild(parentNode: HeadingNode<HtmlHeading>, childNode: HeadingNode<HtmlHeading>) {
@@ -262,9 +274,8 @@ export class TreeFileUi {
         folderEl.className = "tree-item nav-folder";
 
         const folderSelf = createDiv();
-        folderSelf.className = "tree-item-self nav-folder-title is-clickable mod-collapsible";
+        folderSelf.className = "tree-item-self nav-folder-title is-clickable mod-collapsible file-outline-item-self";
         folderSelf.setAttribute("draggable", "true");
-        folderSelf.setCssStyles({ marginInlineStart: "0px", paddingInlineStart: "24px" });
 
         const iconContainer = createDiv();
         iconContainer.className = "tree-item-icon collapse-icon";
@@ -292,9 +303,16 @@ export class TreeFileUi {
         iconContainer.appendChild(svg);
 
         const titleEl = createDiv();
-        titleEl.className = "tree-item-inner nav-folder-title-content";
+        titleEl.className = "tree-item-inner nav-folder-title-content file-outline-title";
         titleEl.setAttribute("data-initialized", "true");
-        this.renderHeadingTitle(titleEl, node.data.headLine);
+        const titleScope = renderHeadingTitle(
+            titleEl,
+            node.data.headLine,
+            this.viewModel.plugin.app,
+            this.viewModel.sourcePath,
+            this.owner
+        );
+        if (titleScope) this.rowScopes.set(node.id, titleScope);
 
         const children = createDiv();
         children.className = "tree-item-children nav-folder-children";
@@ -378,43 +396,6 @@ export class TreeFileUi {
 
     destroy() {
         this.changeSubscription?.unsubscribe();
+        this.retireAllRowScopes();
     }
-
-
-/**
- * Renders a heading string containing inline LaTeX $...$ into a container element.
- */
-    private renderHeadingTitle(containerEl: HTMLElement, titleText: string): void {
-    containerEl.empty();
-    if (!titleText) return;
-
-    const mathRegex = /\$([^$]+)\$/g;
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = mathRegex.exec(titleText)) !== null) {
-        if (match.index > lastIndex) {
-            containerEl.appendText(titleText.slice(lastIndex, match.index));
-        }
-
-        const mathContent = match[1]!;
-        const mathEl = renderMath(mathContent, true);
-        
-        // Force inline rendering
-        mathEl.setCssStyles({
-            display: "inline-block",
-            verticalAlign: "middle",
-            margin: "0 2px",
-        });
-
-        containerEl.appendChild(mathEl);
-        lastIndex = mathRegex.lastIndex;
-    }
-
-    if (lastIndex < titleText.length) {
-        containerEl.appendText(titleText.slice(lastIndex));
-    }
-
-    void finishRenderMath();
-}
 }

@@ -34,6 +34,244 @@ body .menu-item:hover {
 /* Invisible spacer that reserves horizontal room inside a heading's children container. */
 .file-outline-spacer {
 	width: 460px;
+	max-width: 100%;
 	height: 0.1px;
 	margin-bottom: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Parameters popup                                                           */
+/* -------------------------------------------------------------------------- */
+/*
+Obsidian's "Appearance → Font size" writes the chosen size as an inline `font-size` on the
+root element, so every `rem` in the app tracks that slider. This popup is 250px wide with
+20px rows, so text that grows breaks its layout. The base below is pinned to 16px —
+Obsidian's own default font size — and every child derives from it with calc(), which
+reproduces the stock look exactly and never moves again. calc() rather than `em` because the
+info icon sits inside the label, and nesting `em` would multiply the two ratios together.
+--checkbox-size is pinned for the same reason: Obsidian defines it as the slider value.
+*/
+body .file-outline-params-menu {
+	--fop-font-size: 16px;
+	--checkbox-size: 16px;
+	font-size: var(--fop-font-size);
+	width: 250px;
+	/*
+	The left/top set from JS are viewport coordinates, so the popup has to be fixed for
+	them to mean anything. Obsidian's own `.menu` already does this, but stating it here
+	keeps the popup correct if a theme restyles that class.
+	*/
+	position: fixed;
+	z-index: var(--layer-menu, 1000);
+}
+
+body .file-outline-params-title {
+	padding: 6px 10px 4px 10px;
+	font-weight: 600;
+	font-size: calc(var(--fop-font-size) * 0.75); /* 12px */
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 4px;
+}
+
+body .file-outline-params-row {
+	border: none;
+	height: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	border-radius: 0;
+	margin-bottom: 0;
+}
+
+/* Beats .setting-item-name, and beats a theme restating it. */
+body .file-outline-params-menu .file-outline-params-name {
+	font-size: calc(var(--fop-font-size) * 0.85); /* 13.6px */
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	cursor: help;
+	white-space: nowrap;
+}
+
+body .file-outline-params-menu .file-outline-params-info {
+	font-size: calc(var(--fop-font-size) * 0.75); /* 12px */
+	color: var(--text-muted);
+	opacity: 0.7;
+}
+
+body .file-outline-params-control {
+	margin: 0;
+}
+
+/* input.<class> outranks input[type='number'] instead of merely tying it. */
+body input.file-outline-params-number {
+	width: 44px;
+	height: 22px;
+	padding: 0 4px;
+	text-align: right;
+	font-size: calc(var(--fop-font-size) * 0.8); /* 12.8px */
+	background: var(--background-modifier-form-field);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+}
+
+body input.file-outline-params-number.is-invalid {
+	border-color: var(--text-error);
+	color: var(--text-error);
+}
+
+body input.file-outline-params-checkbox {
+	cursor: pointer;
+	margin: 0;
+}
+
+body .file-outline-params-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Outline rows                                                               */
+/* -------------------------------------------------------------------------- */
+
+/* Root row: title stretches, the settings button sits at the end. */
+.file-outline-root-self {
+	display: flex;
+	align-items: center;
+	width: 100%;
+}
+
+.file-outline-root-title {
+	flex: 1 1 auto;
+}
+
+.file-outline-root-children {
+	border-inline-start: none;
+}
+
+/* Every heading row gets its indentation from the tree structure, not from a margin. */
+.file-outline-item-self {
+	margin-inline-start: 0;
+	padding-inline-start: 24px;
+}
+
+/* Heading currently under the reading position. */
+.file-outline-item-self.is-active {
+	background-color: var(--background-modifier-hover);
+	transform: scale(1.05);
+	transition: transform 150ms ease, background-color 150ms ease;
+}
+
+/*
+Heading titles are rendered as real Markdown and HTML, so the result has to be forced back
+to one inline line: the renderer appends bare block elements with no wrapper of its own, and
+a plain <p> alone would add 2em of user-agent margin to every row. Block elements are listed
+by tag rather than with `> *`, so <strong>/<em>/<code> keep their styling once the paragraph
+has been unwrapped.
+*/
+body .file-outline-title {
+	min-width: 0; /* let it shrink inside .tree-item-self's flex row */
+	white-space: normal; /* .tree-item-inner sets pre-wrap, which we do not want */
+	display: -webkit-box; /* clamp rendered titles instead of widening the pane */
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+
+/*
+The row owns both the click (jump to the heading) and the context menu. With
+pointer-events:none the hit test lands on .tree-item-self and both still fire, while a
+rendered external link can no longer open the system browser behind the jump.
+Positioning is deliberately left alone: MathJax lays out \boxed, stretchy delimiters and
+over/under scripts with relative and absolute positioning.
+*/
+body .file-outline-title,
+body .file-outline-title * {
+	pointer-events: none;
+	-webkit-user-select: none;
+	user-select: none;
+	cursor: inherit;
+}
+
+body .file-outline-title :is(p, div, section, ul, ol, li, blockquote, pre, table, thead,
+	tbody, tr, td, th, dl, dt, dd, figure, figcaption, h1, h2, h3, h4, h5, h6) {
+	display: inline;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	font-size: inherit;
+	font-weight: inherit;
+	font-style: inherit;
+	line-height: inherit;
+	letter-spacing: inherit;
+	color: inherit;
+	list-style: none;
+	white-space: inherit;
+}
+
+/* Cannot be squeezed onto one line. */
+body .file-outline-title :is(br, hr, .frontmatter, .copy-code-button, .footnote-backref,
+	.markdown-embed, .markdown-embed-title, .markdown-embed-content, .media-embed,
+	iframe, video, canvas) {
+	display: none;
+}
+
+/* Restore the inline semantics the flattening above must not eat. */
+body .file-outline-title :is(strong, b) {
+	font-weight: var(--bold-weight, 600);
+}
+
+body .file-outline-title :is(em, i) {
+	font-style: italic;
+}
+
+body .file-outline-title code {
+	font-size: 0.9em;
+	padding: 0 2px;
+	border-radius: var(--radius-s);
+}
+
+/* Scoped to .markdown-rendered upstream, which this row deliberately is not. */
+body .file-outline-title .internal-link {
+	color: var(--link-color);
+}
+
+body .file-outline-title mark {
+	background-color: var(--text-highlight-bg);
+}
+
+/* MathJax emits a block container for display math. */
+body .file-outline-title mjx-container,
+body .file-outline-title mjx-container[display="true"],
+body .file-outline-title .math {
+	display: inline-block;
+	margin: 0 2px;
+	padding: 0;
+	vertical-align: middle;
+	font-size: inherit;
+	text-align: inherit;
+}
+
+body .file-outline-title :is(img, svg) {
+	max-height: 1.3em;
+	max-width: 4em;
+	vertical-align: middle;
+	object-fit: contain;
+}
+
+body .file-outline-title .internal-embed {
+	display: inline;
+}
+
+body .file-outline-title input[type="checkbox"] {
+	width: 0.9em;
+	height: 0.9em;
+	margin: 0 0.25em 0 0;
+	vertical-align: middle;
 }

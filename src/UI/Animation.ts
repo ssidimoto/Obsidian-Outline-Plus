@@ -1,6 +1,5 @@
 import { HtmlHeading } from "datatypes/Heading";
 import { HeadingNode, HeadingsTree } from "datatypes/HeadingsTree";
-import { finishRenderMath, renderMath } from "obsidian";
 import {SETTINGS} from "../main";
 
 export function animateCollapse(childrenEl: HTMLElement) {
@@ -129,38 +128,4 @@ export function collapsePathToNode(node: HeadingNode<HtmlHeading>, OnHeadingButt
             }
         }
     } 
-}
-
-export function renderHeadingTitle(containerEl: HTMLElement, titleText: string): void {
-    containerEl.empty();
-    if (!titleText) return;
-
-    const mathRegex = /\$([^$]+)\$/g;
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = mathRegex.exec(titleText)) !== null) {
-        if (match.index > lastIndex) {
-            containerEl.appendText(titleText.slice(lastIndex, match.index));
-        }
-
-        const mathContent = match[1]!;
-        const mathEl = renderMath(mathContent, true);
-        
-        // Force inline rendering
-        mathEl.setCssStyles({
-            display: "inline-block",
-            verticalAlign: "middle",
-            margin: "0 2px",
-        });
-
-        containerEl.appendChild(mathEl);
-        lastIndex = mathRegex.lastIndex;
-    }
-
-    if (lastIndex < titleText.length) {
-        containerEl.appendText(titleText.slice(lastIndex));
-    }
-
-    void finishRenderMath();
 }
