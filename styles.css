@@ -9,15 +9,20 @@ These two rules were previously injected at runtime as a <style> element appende
 to <head>, which placed them after the theme. A plugin's styles.css is inserted
 before the theme's stylesheet, so `body` is prepended to keep them winning ties
 against theme rules exactly as they did before.
+
+`.tooltip` and `.menu-item` are core Obsidian classes shared by the whole app, so both
+rules are scoped to this plugin's own DOM rather than repainting every tooltip and every
+context menu in Obsidian. The tooltip is tagged through the `classes` option of
+setTooltip() in src/UI/ParametersUI.ts; `context-menu-root` is this plugin's own menu
+class. Colour, padding and stacking are left to the theme.
 */
-body .tooltip {
-	z-index: 10000;
-	background-color: rgba(0, 0, 0, 0.5);
+body .tooltip.file-outline-tooltip {
 	text-align: left;
-	padding: 5px;
 }
 
-body .menu-item:hover {
+/* The menu is hand-built, so nothing ever adds core's `.selected` class and hover has to
+   be styled here. Core's own menus keep core's behaviour. */
+body .context-menu-root .menu-item:hover {
 	background-color: var(--background-modifier-hover);
 }
 
@@ -28,7 +33,7 @@ body .menu-item:hover {
 	left: 50%;
 	transform: translate(-50%, -50%);
 	font-size: 14px;
-	color: #909090;
+	color: var(--text-muted);
 }
 
 /* Invisible spacer that reserves horizontal room inside a heading's children container. */
@@ -246,10 +251,17 @@ body .file-outline-title mark {
 	background-color: var(--text-highlight-bg);
 }
 
-/* MathJax emits a block container for display math. */
-body .file-outline-title mjx-container,
-body .file-outline-title mjx-container[display="true"],
-body .file-outline-title .math {
+/*
+MathJax emits a block container for display math. Obsidian wraps every rendered expression
+in `.math` and appends MathJax's own container inside it, and MathJax tags that container
+`class="MathJax"` — so both boxes are reachable by class and the custom `mjx-container`
+element never has to be named as a type selector. Keeping the `.math` ancestor in the
+selector matters: `.math .MathJax` scores (0,3,1) and so outranks MathJax's own runtime rule
+`mjx-container[jax="CHTML"][display="true"] { display: block; margin: 1em 0 }` at (0,2,1)
+whichever stylesheet is inserted last, which is what keeps display math on a single row.
+*/
+body .file-outline-title .math,
+body .file-outline-title .math .MathJax {
 	display: inline-block;
 	margin: 0 2px;
 	padding: 0;

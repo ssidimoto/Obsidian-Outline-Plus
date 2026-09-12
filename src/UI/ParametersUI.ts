@@ -175,7 +175,7 @@ function buildParametersMenu(params: ParametersData, onChange: (action: ParamUpd
         nameEl.createSpan({ cls: "file-outline-params-info", text: "ⓘ" });
 
         // Attach Obsidian native tooltip
-        setTooltip(nameEl, tooltipText, { placement: "left", delay: 300});
+        setTooltip(nameEl, tooltipText, { placement: "left", delay: 300, classes: ["file-outline-tooltip"] });
 
         // Right side: Compact Control
         const control = row.createDiv({ cls: "setting-item-control file-outline-params-control" });
