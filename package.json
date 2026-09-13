@@ -1,6 +1,6 @@
 {
 	"name": "file-outline-plus",
-	"version": "1.0.0",
+	"version": "1.0.2",
 	"description": "A document outline sidebar with collapsible headings, active-position tracking and inline LaTeX rendering.",
 	"main": "main.js",
 	"type": "module",
