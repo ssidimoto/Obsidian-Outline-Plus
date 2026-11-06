@@ -63,7 +63,6 @@ export class TreeFileViewModel {
   id: number = 1;
   fileName: string | null = null;
   private lastKnownFile: TFile | null = null;
-  private lastParsedDoc: string = "";
   
   private change = new BehaviorSubject<TreeChange | null>(null);
   readonly change$ = this.change.asObservable();
@@ -98,22 +97,23 @@ export class TreeFileViewModel {
     this.tree = new HeadingsTree(root);
     //detect file closing even if not focus
 
-  //listen with layout change and print some deug info
-  this.owner.registerEvent(
-    this.plugin.app.workspace.on('layout-change', () => {
-      let view = this.getOutlineMarkdownView();
-      //if view null means file got deleted
-      if(view === null) {
-        this.destroyTree();
-        this.change.next(new TreeChange(TreeAction.Error));
-      } else {
-        // Covers toggling between editing and reading mode: the new mode has just been
-        // laid out, so the highlight has to be recomputed from it.
-        this.scrollTracker.resync(view);
-      }
+    //listen with layout change and print some deug info
+    this.owner.registerEvent(
+      this.plugin.app.workspace.on('layout-change', () => {
+        let view = this.getOutlineMarkdownView();
+        //if view null means file got deleted
+        if(view === null) {
+          this.destroyTree();
+          this.change.next(new TreeChange(TreeAction.Error));
+        } else {
+          // Covers toggling between editing and reading mode: the new mode has just been
+          // laid out, so the highlight has to be recomputed from it.
+          this.scrollTracker.resync(view);
+        }
 
-    })
-  );
+      })
+    );
+
     // 1. Listen for active file change
     this.owner.registerEvent(
       this.plugin.app.workspace.on('file-open', (file: TFile | null) => {
@@ -260,34 +260,8 @@ export class TreeFileViewModel {
   
   private syncTreeFromEditor(editor: Editor) {
     const doc = editor.getValue();
-    this.lastParsedDoc = doc;
-    const cmView = editor.cm;
     const totalLines = editor.lineCount();
-
-    const HEADING_REGEX = /^#{1,6}\s+(.*)$/gm;
-
-    const newHeadingsData: { text: string; level: number; lineNbr: number; width: number }[] = [];
-    let match: RegExpExecArray | null;
-
-    while ((match = HEADING_REGEX.exec(doc)) !== null) {
-      const charOffset = match.index;
-      const fullMatch = match[0];
-      const headingText = match[1] ? match[1].trim() : "";
-
-      let level = 0;
-      while (fullMatch[level] === "#") {
-        level++;
-      }
-
-      let lineNbr = 0;
-      if (cmView) {
-        lineNbr = cmView.state.doc.lineAt(charOffset).number - 1;
-      } else {
-        lineNbr = editor.offsetToPos(charOffset).line;
-      }
-
-      newHeadingsData.push({ level, text: headingText, lineNbr, width: 0 });
-    }
+    const newHeadingsData = this.parseHeadingsFromText(doc);
 
     for (let i = 0; i < newHeadingsData.length; i++) {
       const current = newHeadingsData[i]!;
@@ -300,7 +274,6 @@ export class TreeFileViewModel {
 
   private async syncTreeFromFile(file: TFile) {
     const doc = await this.plugin.app.vault.cachedRead(file);
-    this.lastParsedDoc = doc;
     this.applyHeadingsData(this.parseHeadingsFromText(doc));
 
     // The tree only exists now, so a file opened straight into reading mode would otherwise
@@ -310,51 +283,26 @@ export class TreeFileViewModel {
   }
 
   private parseHeadingsFromText(doc: string): { text: string; level: number; lineNbr: number; width: number }[] {
-    const headings: { text: string; level: number; lineNbr: number; width: number }[] = [];
-    const headingRegex = /^(#{1,6})[ \t]+(.*)$/gm;
-
-    let currentLine = 0;
-    let lastMatchIndex = 0;
-    let match: RegExpExecArray | null;
-
-    // Single pass regex match across the entire document
-    while ((match = headingRegex.exec(doc)) !== null) {
-      const matchIndex = match.index;
-
-      // Count newlines between last match position and current match position
-      for (let i = lastMatchIndex; i < matchIndex; i++) {
-        if (doc.charCodeAt(i) === 10) { // 10 is ASCII for '\n'
-          currentLine++;
-        }
-      }
-      lastMatchIndex = matchIndex;
-
-      headings.push({
-        level: match[1]!.length,
-        text: match[2]!.trim(),
-        lineNbr: currentLine,
-        width: 0,
+    const newHeadingsData: { text: string; level: number; lineNbr: number; width: number }[] = [];
+    const file = this.lastKnownFile;
+    if (!file) return newHeadingsData;
+    this.plugin.app.metadataCache.getFileCache(file)?.headings?.forEach((heading) => {
+      newHeadingsData.push({
+        text: heading.heading,
+        level: heading.level,
+        lineNbr: heading.position.start.line,
+        width: 0
       });
-    }
-
-    if (headings.length === 0) return headings;
-
-    // Count remaining lines to compute the total document line count
-    for (let i = lastMatchIndex; i < doc.length; i++) {
-      if (doc.charCodeAt(i) === 10) {
-        currentLine++;
-      }
-    }
-    const totalLines = currentLine + 1;
+    });
 
     // Calculate width (line span) for each heading
-    for (let i = 0; i < headings.length; i++) {
-      const current = headings[i]!;
-      const next = headings[i + 1];
-      current.width = next ? next.lineNbr - current.lineNbr : totalLines - current.lineNbr;
+    for (let i = 0; i < newHeadingsData.length; i++) {
+      const current = newHeadingsData[i]!;
+      const next = newHeadingsData[i + 1];
+      current.width = next ? next.lineNbr - current.lineNbr : doc.split('\n').length - current.lineNbr;
     }
 
-    return headings;
+    return newHeadingsData;
   }
 
   private applyHeadingsData(newHeadingsData: { text: string; level: number; lineNbr: number; width: number }[]) {
